@@ -26,6 +26,8 @@ CREATE TABLE users (
     must_change_password INTEGER NOT NULL DEFAULT 0,
     totp_secret_enc      BLOB,
     totp_enabled         INTEGER NOT NULL DEFAULT 0,
+    -- Son kabul edilen TOTP zaman adımı; aynı kod (ve daha eskisi) ikinci kez geçmez.
+    totp_last_step       INTEGER NOT NULL DEFAULT 0,
     failed_logins        INTEGER NOT NULL DEFAULT 0,
     locked_until         INTEGER,
     notice_accepted_at   INTEGER,
@@ -151,6 +153,13 @@ CREATE TABLE todos (
     done       INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
+
+-- İki adımlı doğrulama kurtarma kodları: yalnızca özetleri tutulur, her biri tek kullanımlık.
+CREATE TABLE totp_recovery (
+    user_id   TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    code_hash TEXT NOT NULL,
+    PRIMARY KEY (user_id, code_hash)
+) WITHOUT ROWID;
 
 -- Kişisel proje notu: yalnızca yazan kullanıcı görür; gövde alan düzeyinde şifreli.
 CREATE TABLE project_notes (

@@ -33,7 +33,14 @@ pub trait UserRepo: Send + Sync {
         failed: i64,
         locked_until: Option<Timestamp>,
     ) -> AppResult<()>;
+    /// Kapatılırken (`enabled = false`) son adım sıfırlanır ve kurtarma kodları silinir.
     async fn set_totp(&self, id: &str, secret: Option<&str>, enabled: bool) -> AppResult<()>;
+    /// Adım yalnızca ileri gidebilir; eşzamanlı iki girişte yalnızca biri `true` alır.
+    async fn advance_totp_step(&self, id: &str, step: i64) -> AppResult<bool>;
+    async fn replace_recovery(&self, id: &str, hashes: &[String]) -> AppResult<()>;
+    /// Kodu tek seferde siler; silinen satır yoksa kod geçersiz ya da kullanılmıştır.
+    async fn consume_recovery(&self, id: &str, hash: &str) -> AppResult<bool>;
+    async fn count_recovery(&self, id: &str) -> AppResult<i64>;
     async fn delete(&self, id: &str) -> AppResult<()>;
     async fn count_in_role(&self, role_id: &str) -> AppResult<i64>;
 }
@@ -218,7 +225,10 @@ pub trait SecretBox: Send + Sync {
 pub trait Totp: Send + Sync {
     fn new_secret(&self) -> String;
     fn provisioning_uri(&self, secret: &str, account: &str, issuer: &str) -> AppResult<String>;
-    fn verify(&self, secret: &str, code: &str, now: Timestamp) -> bool;
+    /// Kod geçerliyse eşleşen zaman adımını döndürür; tekrar kullanım denetimi buna dayanır.
+    fn verify(&self, secret: &str, code: &str, now: Timestamp) -> Option<i64>;
+    /// Kriptografik rastgele, okunaklı kurtarma kodları (xxxx-xxxx-xxxx).
+    fn recovery_codes(&self, count: usize) -> Vec<String>;
 }
 
 pub trait HtmlSanitizer: Send + Sync {

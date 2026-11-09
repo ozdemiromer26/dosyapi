@@ -1,0 +1,48 @@
+# dosyapı üretim kurulumu: uygulama + otomatik HTTPS (Caddy, Let's Encrypt).
+# Değerler aynı klasördeki .env dosyasından okunur; kur.sh bu dosyayı yazar.
+name: dosyapi
+
+services:
+  dosyapi:
+    image: ${DOSYAPI_IMAGE_REF:?}
+    restart: unless-stopped
+    environment:
+      DOSYAPI_PUBLIC_URL: https://${DOSYAPI_DOMAIN:?}
+      # Konteyner sunucu dışına port açmaz; ona yalnızca aynı ağdaki Caddy ulaşır.
+      # Bu yüzden vekilin X-Forwarded-For başlığına güvenilir. (E-posta ve güncelleme
+      # denetimi için dışarı çıkışı vardır.)
+      DOSYAPI_TRUST_PROXY: "1"
+    volumes:
+      - ./data:/data
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [dosyapi]
+    environment:
+      DOSYAPI_DOMAIN: ${DOSYAPI_DOMAIN:?}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+volumes:
+  caddy-data:
+  caddy-config:

@@ -74,7 +74,7 @@ export class DocumentController extends EditorController {
     const o0 = owners[0] || {};
     put("arsaSahibi", { ad: o0.name || "", tc: o0.tc || "", telefon: o0.phone || "", adres: o0.address || "", hisse: o0.share || "" });
     put("vekil", { ad: proxy.name || "", tc: proxy.tc || "", telefon: proxy.phone || "", adres: proxy.address || "" });
-    return { vals: v, lists: {
+    return { brand: s.palette && s.palette.pri, vals: v, lists: {
       muellifler: authors.map((a, i) => ({ sira: i + 1, ...au(a) })),
       arsaSahipleri: owners.map((o, i) => ({ sira: i + 1, ad: o.name || "", tc: o.tc || "", telefon: o.phone || "", adres: o.address || "", hisse: o.share || "", imza: "" })),
     } };

@@ -39,7 +39,8 @@ export function AuthScreen({ v }: { v: Vals }) {
                 <input name="pass" onChange={v.onField} type="password" placeholder="••••••••" style={st.fieldAuth} />
               </label>
               {v.totpNeeded ? (<><label style={st.fieldLabel}>{v.T.dogrulamaKodu}
-                <input name="code" onChange={v.onField} inputMode="numeric" autoComplete="one-time-code" placeholder="000000" style={st.fieldAuth} />
+                <input name="code" onChange={v.onField} autoComplete="one-time-code" autoCapitalize="none" spellCheck={false} maxLength={20} placeholder="000000" style={st.fieldAuth} />
+                <span style={css("display:block;margin-top:6px;font-size:12px;font-weight:600;color:var(--muted);line-height:1.5")}>{v.T.kurtarmaGirisNot}</span>
               </label></>) : null}
               <div style={css("display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap")}>
                 <button onClick={v.toggleRemember} style={css("display:flex;align-items:center;gap:9px;border:none;background:none;padding:2px 0;cursor:pointer")}>

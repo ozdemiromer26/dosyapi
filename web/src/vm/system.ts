@@ -128,7 +128,26 @@ export function buildSystem(c: Ctx): () => Vals {
     refPtPass: app.mkRef("ptPass"), refPtCode: app.mkRef("ptCode"),
     totpCancel: () => { app.clearFields("ptCode"); app.setState({ totpSetup: null }); },
     totpBegin: async () => { try { app.setState({ totpSetup: await app.api.post("/profile/totp/begin", {}) }); } catch (e) { app.fail(e); } },
-    totpConfirm: () => app.act(() => app.api.post("/profile/totp/confirm", { code: fd().ptCode || "" }).then(() => app.setState({ totpSetup: null })), tx("İki adımlı doğrulama açıldı.")),
+    totpConfirm: () => app.act(() => app.api.post("/profile/totp/confirm", { code: fd().ptCode || "" }).then((r) => { app.clearFields("ptCode"); app.setState({ totpSetup: null, recoveryCodes: r.recoveryCodes || [] }); }), tx("İki adımlı doğrulama açıldı.")),
+    recoveryCodes: s.recoveryCodes || null,
+    meRecoveryLeft: s.meRecoveryLeft || 0,
+    recoveryDone: () => app.setState({ recoveryCodes: null }),
+    recoveryCopy: () => {
+      const text = (s.recoveryCodes || []).join("\n");
+      navigator.clipboard.writeText(text).then(() => app.toast(tx("Kodlar kopyalandı.")), () => app.toast(tx("Kopyalanamadı; kodları elle not alın.")));
+    },
+    recoveryDownload: () => {
+      const body = tx("dosyapı kurtarma kodları") + " · " + (s.company.name || "") + "\n" + tx("Her kod yalnızca bir kez kullanılabilir.") + "\n\n" + (s.recoveryCodes || []).join("\n") + "\n";
+      const url = URL.createObjectURL(new Blob([body], { type: "text/plain;charset=utf-8" }));
+      app.download("dosyapi-kurtarma-kodlari.txt", url);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    },
+    recoveryRegenerate: () => {
+      const password = fd().ptPass || "";
+      if (!password) return app.toast(tx("Yeni kod üretmek için mevcut şifrenizi girin."));
+      app.clearFields("ptPass");
+      app.act(() => app.api.post("/profile/totp/recovery", { password }).then((r) => app.setState({ recoveryCodes: r.recoveryCodes || [] })), tx("Yeni kurtarma kodları üretildi; eskileri artık geçmez."));
+    },
     totpDisable: () => {
       const password = fd().ptPass || "";
       if (!password) return app.toast(tx("Kapatmak için mevcut şifrenizi girin."));

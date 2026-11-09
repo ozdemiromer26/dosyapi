@@ -1,0 +1,17 @@
+# Yayın imajı: GitHub Actions'ta derlenmiş Linux ikilisini paketler (yeniden derlemez).
+# İkili ubuntu-24.04 üzerinde derlendiği için taban aynı glibc'ye sahip olmalı.
+FROM ubuntu:24.04
+ARG TARGETARCH
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd --system --uid 10001 --home-dir /data --shell /usr/sbin/nologin dosyapi
+COPY dist/dosyapi-linux-${TARGETARCH} /usr/local/bin/dosyapi
+COPY deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod 0755 /usr/local/bin/dosyapi /usr/local/bin/docker-entrypoint.sh
+USER 10001:10001
+VOLUME /data
+EXPOSE 8080
+LABEL org.opencontainers.image.title="dosyapı" \
+      org.opencontainers.image.description="Şantiyenin dosyası cebinde." \
+      org.opencontainers.image.authors="Ömer Özdemir"
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

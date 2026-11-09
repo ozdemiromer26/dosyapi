@@ -155,14 +155,76 @@ impl UserRepo for Db {
         let blob = secret
             .map(|s| self.cipher.encrypt_text(&ctx("totp", id), s))
             .transpose()?;
-        sqlx::query("UPDATE users SET totp_secret_enc = ?, totp_enabled = ? WHERE id = ?")
-            .bind(blob)
-            .bind(enabled)
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
+        sqlx::query(
+            "UPDATE users SET totp_secret_enc = ?, totp_enabled = ?,
+             totp_last_step = CASE WHEN ? THEN totp_last_step ELSE 0 END WHERE id = ?",
+        )
+        .bind(blob)
+        .bind(enabled)
+        .bind(enabled)
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(db_err)?;
+        if !enabled {
+            sqlx::query("DELETE FROM totp_recovery WHERE user_id = ?")
+                .bind(id)
+                .execute(&mut *tx)
+                .await
+                .map_err(db_err)?;
+        }
+        tx.commit().await.map_err(db_err)?;
+        Ok(())
+    }
+
+    async fn advance_totp_step(&self, id: &str, step: i64) -> AppResult<bool> {
+        let done =
+            sqlx::query("UPDATE users SET totp_last_step = ? WHERE id = ? AND totp_last_step < ?")
+                .bind(step)
+                .bind(id)
+                .bind(step)
+                .execute(&self.pool)
+                .await
+                .map_err(db_err)?;
+        Ok(done.rows_affected() == 1)
+    }
+
+    async fn replace_recovery(&self, id: &str, hashes: &[String]) -> AppResult<()> {
+        let mut tx = self.pool.begin().await.map_err(db_err)?;
+        sqlx::query("DELETE FROM totp_recovery WHERE user_id = ?")
             .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db_err)?;
+        for hash in hashes {
+            sqlx::query("INSERT INTO totp_recovery (user_id, code_hash) VALUES (?, ?)")
+                .bind(id)
+                .bind(hash)
+                .execute(&mut *tx)
+                .await
+                .map_err(db_err)?;
+        }
+        tx.commit().await.map_err(db_err)?;
+        Ok(())
+    }
+
+    async fn consume_recovery(&self, id: &str, hash: &str) -> AppResult<bool> {
+        let done = sqlx::query("DELETE FROM totp_recovery WHERE user_id = ? AND code_hash = ?")
+            .bind(id)
+            .bind(hash)
             .execute(&self.pool)
             .await
             .map_err(db_err)?;
-        Ok(())
+        Ok(done.rows_affected() == 1)
+    }
+
+    async fn count_recovery(&self, id: &str) -> AppResult<i64> {
+        sqlx::query_scalar("SELECT COUNT(*) FROM totp_recovery WHERE user_id = ?")
+            .bind(id)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(db_err)
     }
 
     async fn delete(&self, id: &str) -> AppResult<()> {

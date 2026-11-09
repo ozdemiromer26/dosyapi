@@ -463,18 +463,33 @@ struct CodeInput {
     code: String,
 }
 
+/// Kurtarma kodları yalnızca bu yanıtta düz metin olarak görünür; sunucuda özetleri kalır.
 async fn totp_confirm(
     State(state): State<AppState>,
     AuthUser(auth): AuthUser,
     Meta(meta): Meta,
     Body(input): Body<CodeInput>,
-) -> ApiResult<StatusCode> {
-    state
+) -> ApiResult<Json<Value>> {
+    let codes = state
         .services
         .auth
         .totp_confirm(&auth.actor, &input.code, &meta)
         .await?;
-    Ok(StatusCode::NO_CONTENT)
+    Ok(Json(json!({ "recoveryCodes": codes })))
+}
+
+async fn totp_recovery(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Meta(meta): Meta,
+    Body(input): Body<PasswordOnly>,
+) -> ApiResult<Json<Value>> {
+    let codes = state
+        .services
+        .auth
+        .totp_recovery_regenerate(&auth.actor, &input.password, &meta)
+        .await?;
+    Ok(Json(json!({ "recoveryCodes": codes })))
 }
 
 #[derive(Deserialize)]
@@ -661,6 +676,7 @@ pub fn router() -> Router<AppState> {
         .route("/profile/logout-others", post(profile_logout_others))
         .route("/profile/totp/begin", post(totp_begin))
         .route("/profile/totp/confirm", post(totp_confirm))
+        .route("/profile/totp/recovery", post(totp_recovery))
         .route("/profile/totp/disable", post(totp_disable))
         .route("/templates", put(template_save))
         .route("/templates/{id}", delete(template_delete))

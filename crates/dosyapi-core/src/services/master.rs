@@ -7,7 +7,7 @@ use crate::ports::*;
 use crate::services::audit::Auditor;
 use crate::services::auth::lockout_seconds;
 use crate::services::settings::{
-    KEY_MASTER_HASH, KEY_MASTER_LOCK, KEY_MASTER_TOTP, LockState, Settings,
+    KEY_MASTER_HASH, KEY_MASTER_LOCK, KEY_MASTER_TOTP, KEY_MASTER_TOTP_STEP, LockState, Settings,
 };
 use std::sync::Arc;
 
@@ -88,11 +88,24 @@ impl MasterService {
             if code.is_empty() {
                 return Err(AppError::TotpRequired);
             }
-            if !self.totp.verify(&secret, code, now) {
-                self.audit
-                    .master(meta, "master.totp_failed", "", "")
-                    .await?;
-                return Err(AppError::validation("Doğrulama kodu hatalı."));
+            let last: i64 = self
+                .settings
+                .get_json(KEY_MASTER_TOTP_STEP)
+                .await?
+                .unwrap_or(0);
+            // Aynı kod (ya da daha eskisi) ikinci kez kabul edilmez.
+            match self
+                .totp
+                .verify(&secret, code, now)
+                .filter(|step| *step > last)
+            {
+                Some(step) => self.settings.set_json(KEY_MASTER_TOTP_STEP, &step).await?,
+                None => {
+                    self.audit
+                        .master(meta, "master.totp_failed", "", "")
+                        .await?;
+                    return Err(AppError::validation("Doğrulama kodu hatalı."));
+                }
             }
         }
         self.settings
@@ -193,10 +206,18 @@ impl MasterService {
         code: &str,
         meta: &RequestMeta,
     ) -> AppResult<()> {
-        if !self.totp.verify(secret, code, self.clock.now()) {
-            return Err(AppError::validation("Kod hatalı."));
+        // Açıkken yeni anahtar yazmak, oturumu ele geçirene doğrulamayı değiştirme imkânı verirdi.
+        if self.totp_status().await? {
+            return Err(AppError::conflict(
+                "İki adımlı doğrulama zaten açık; yeniden kurmak için önce kapatın.",
+            ));
         }
+        let step = self
+            .totp
+            .verify(secret, code, self.clock.now())
+            .ok_or_else(|| AppError::validation("Kod hatalı."))?;
         self.settings.set_secret(KEY_MASTER_TOTP, secret).await?;
+        self.settings.set_json(KEY_MASTER_TOTP_STEP, &step).await?;
         self.audit.master(meta, "master.totp_enabled", "", "").await
     }
 

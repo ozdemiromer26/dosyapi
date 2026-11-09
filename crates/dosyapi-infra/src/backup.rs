@@ -92,6 +92,7 @@ impl DataEraser for SqliteEraser {
             "tasks",
             "todos",
             "project_notes",
+            "totp_recovery",
             "files",
             "project_authors",
             "projects",

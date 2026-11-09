@@ -7,14 +7,14 @@ bağımsız denetimin yerini tutmaz.
 
 | Sınama | Araç | Sonuç |
 | --- | --- | --- |
-| Saldırı senaryoları | `security/pentest.py` | 254/254 geçti (hata ayıklama derlemesi) |
-| Sürüm derlemesi, gerçek Argon2id | `pentest.py --timing` | 263/263 geçti |
+| Saldırı senaryoları | `security/pentest.py` | 275/275 geçti (hata ayıklama derlemesi) |
+| Sürüm derlemesi, gerçek Argon2id | `pentest.py --timing` | 284/284 geçti |
 | Kullanıcı numaralandırma süresi | `pentest.py --timing` | Olmayan hesap 72 ms, var olan hesap 72 ms |
 | Güncelleme saldırıları | `security/update_test.py` | 18/18 geçti |
 | SQL enjeksiyonu taraması | sqlmap 1.10 (seviye 3, risk 2) | İki turda toplam 8 farklı uç noktada enjeksiyon bulunmadı |
 | Bilinen açıklar | `cargo audit`, `npm audit` | 0 açık (bir istisna aşağıda) |
 | Statik denetim | clippy `-D warnings`, TypeScript, shellcheck | Temiz |
-| Birim testleri | `cargo test` | 41/41 geçti |
+| Birim testleri | `cargo test` | 44/44 geçti |
 | Temiz kopyadan derleme | `make build` | Geçti |
 
 sqlmap kimliği doğrulanmış oturumla proje, müellif, not, profil uç noktalarını ve URL yolunu taradı. Uygulamaya binlerce yük
@@ -37,7 +37,7 @@ içinde görünür, derlenmez. `cargo tree -i rsa` boş döner.
 | Onay akışı | Bekleyen kayıtta ikinci değişiklik, onay sırasında ezme, alan dışı değişiklik, kullanılan müteahhidi silme, projeyle görev silinmesi |
 | KVKK | Aydınlatma onayı olmadan kayıt, onay zamanının saklanması, yetkisiz metin değişimi |
 | Proje ayrıntısı | Toplamı 1/1 olmayan ya da kesir olmayan hisse; fotoğraf olarak SVG, HTML, çalıştırılabilir ve büyük dosya; onaylı ve salt okuma rolüyle fotoğraf değişimi; CSRF; diskte düz fotoğraf; proje silinince fotoğrafın kalması; kişisel notu başka kullanıcının okuması, bootstrap'a sızması, CSRF'siz ya da oturumsuz erişim, aşırı uzun ve denetim karakterli not, diskte düz not, proje silinince notun kalması |
-| Görev ve iki adımlı doğrulama | Başkasının ya da atananın görevi düzenlemesi, düzenlemede üst kademeye atama, takvimde olmayan tarih (2030-13-45), bilinmeyen alan, CSRF; iki adımlı doğrulamayı yanlış kodla açma, açıkken kodsuz giriş, yanlış şifreyle ya da CSRF'siz kapatma, kapattıktan sonra normal giriş |
+| Görev ve iki adımlı doğrulama | Başkasının ya da atananın görevi düzenlemesi, düzenlemede üst kademeye atama, takvimde olmayan tarih (2030-13-45), bilinmeyen alan, CSRF; iki adımlı doğrulamayı yanlış kodla açma, açıkken kodsuz giriş, yanlış şifreyle ya da CSRF'siz kapatma, kapattıktan sonra normal giriş; aynı TOTP kodunu ikinci kez kullanma (kullanıcı ve master), kurulum kodunu girişte tekrar kullanma, kurtarma kodunun ikinci kullanımı, başka hesabın kurtarma kodu, yenilemeden sonra eski kod, açıkken şifresiz yeniden kurulum, diskte düz kurtarma kodu. 2FA senaryoları IP giriş sınırını paylaşmamak için ayrı bir test sunucusunda koşar. |
 | Toplu atama | Rol, durum ve kimlik alanlarını isteğe ekleme |
 | CSRF | Belirteçsiz istek, başka oturumun belirteci, yabancı köken, giriş CSRF'si, CORS |
 | Enjeksiyon | SQL yükleri, kalıcı XSS, CSS enjeksiyonu, e-posta başlık enjeksiyonu, denetim karakterleri, derin JSON, büyük gövde |
@@ -70,12 +70,15 @@ içinde görünür, derlenmez. `cargo tree -i rsa` boş döner.
 | 17 | Düşük | Silinen projenin görevleri sahipsiz kalıyordu | Tasarım incelemesi | `ON DELETE CASCADE` |
 | 18 | Düşük | Arayüz yolları her HTTP yöntemine 200 dönüyordu | Yük testi | Yalnızca GET ve HEAD; diğerleri 405 |
 | 19 | Düşük | Tarih doğrulayıcı yalnızca biçime bakıyordu; 2030-13-45 gibi takvimde olmayan günler görev tarihi olarak kaydedilebiliyordu | pentest.py | Ay ve gün (artık yıl dahil) denetleniyor; birim testi eklendi |
+| 20 | Orta | Geçerli TOTP kodu ~90 sn içinde tekrar kullanılabiliyordu; oturumu ele geçiren biri iki adımlı doğrulamayı şifresiz yeniden kurarak kapatabiliyordu (kullanıcı ve master) | Kod incelemesi | Zaman adımı kaydediliyor ve yalnızca ileri gidiyor; açıkken yeniden kurulum reddediliyor |
+| 21 | Düşük | Büyük gövde testi bağlantı erken kapandığında testi çökertiyordu | pentest.py | Kopan bağlantı da ret sayılıyor |
 
 ## Sınanamayanlar
 
 Bu ortamda (macOS, Docker yok, genel alan adı yok) çalıştırılamadı. Üretimden önce gerçek ortamda deneyin:
 
 - `install.sh` ve systemd birimleri Linux'ta hiç çalıştırılmadı; yalnızca shellcheck geçti.
+- Docker kurulumu (`deploy/kur.sh`, `dosyapi-ctl`, `compose.yml`, `Dockerfile.release`) hiç çalıştırılmadı: geliştirme makinesinde Docker yok. Betikler shellcheck ve `bash -n`, compose dosyası YAML ayrıştırmasından geçti. İlk yayından önce gerçek bir sunucuda baştan sona denenmeli.
 - Docker imajı derlenmedi.
 - Let's Encrypt sertifika alımı denenmedi; genel alan adı gerekir.
 - Cloudflare API yazımı denenmedi; DNS doğrulama gerçek DNS ile denendi.

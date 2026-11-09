@@ -14,6 +14,7 @@ pub const KEY_DOMAINS: &str = "email.domains";
 pub const KEY_DOMAIN_LOCK: &str = "email.domainLock";
 pub const KEY_MASTER_HASH: &str = "master.hash";
 pub const KEY_MASTER_TOTP: &str = "master.totp";
+pub const KEY_MASTER_TOTP_STEP: &str = "master.totpStep";
 pub const KEY_MASTER_LOCK: &str = "master.lock";
 pub const KEY_SMTP: &str = "smtp";
 pub const KEY_SMTP_PASSWORD: &str = "smtp.password";

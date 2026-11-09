@@ -48,6 +48,25 @@ export const geom = (t) => {
   return { w, h, m, fmt: t.size === "Letter" ? "letter" : String(t.size || "A4").toLowerCase(), or: land ? "landscape" : "portrait", cwMm: w - m.l - m.r };
 };
 export const hasContent = (h) => /<(img|table)/i.test(h || "") || String(h || "").replace(/<[^>]+>/g, "").replace(/&nbsp;|\s|\u200B/g, "").length > 0;
+/** Şablonlardaki marka rengi yer tutucuları. Hazır şablonlar ve düzenleyici bu sabit
+ *  tonlarla yazar; belge üretilirken şirketin ana rengine (Sistem paneli → Şirket kimliği)
+ *  çevrilir. Böylece kayıtlı şablonlara dokunmadan renk değişikliği her belgeye yansır. */
+const BRAND_SLOTS: [RegExp, number][] = [
+  [/#2a3180\b/gi, 1],      // çizgi ve vurgu: ana renk
+  [/#8a96e0\b/gi, 0.55],   // tekrar bloğu çerçevesi
+  [/#c3cdf0\b/gi, 0.28],   // değişken etiketi kenarı
+  [/#e9eefb\b/gi, 0.1],    // değişken etiketi zemini
+  [/#eef1fc\b/gi, 0.08],   // tekrarlanan satır zemini
+];
+const hex6 = (c: string) => { const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec((c || "").trim()); if (!m) return null; const h = m[1].length === 3 ? m[1].replace(/./g, (x) => x + x) : m[1]; return h.toLowerCase(); };
+/** Ana rengi beyazla karıştırır (w=1 ana renk, w=0 beyaz); Word/PDF de anlasın diye düz hex döner. */
+const tintOf = (h: string, w: number) => "#" + [0, 2, 4].map((i) => Math.round(parseInt(h.slice(i, i + 2), 16) * w + 255 * (1 - w)).toString(16).padStart(2, "0")).join("");
+export const brandize = (html: string, pri?: string) => {
+  const h = hex6(pri || "");
+  if (!h || !html) return html;
+  return BRAND_SLOTS.reduce((out, [re, w]) => out.replace(re, tintOf(h, w)), html);
+};
+
 export const renderTpl = (html, ctx, mode) => {
   const box: any = document.createElement("div"); box.innerHTML = cleanHtml(html || "");
   const val = (key, item, ln) => {
@@ -72,6 +91,6 @@ export const renderTpl = (html, ctx, mode) => {
     n.replaceWith(d);
   });
   anyList(box.querySelectorAll("[contenteditable]")).forEach(n => n.removeAttribute("contenteditable"));
-  return box.innerHTML.replace(/\u200B/g, "");
+  return brandize(box.innerHTML.replace(/\u200B/g, ""), ctx.brand);
 };
 export const SLOT_ZOOM = { genPaper: "gen", tplPrev: "tpl" };

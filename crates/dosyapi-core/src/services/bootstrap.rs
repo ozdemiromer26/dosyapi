@@ -74,6 +74,8 @@ pub struct MeView {
     pub role_id: Id,
     pub must_change_password: bool,
     pub totp_enabled: bool,
+    /// Kalan kurtarma kodu sayısı (kodların kendisi asla geri gönderilmez).
+    pub totp_recovery_left: i64,
 }
 
 #[derive(Serialize)]
@@ -276,6 +278,11 @@ impl BootstrapService {
                 role_id: actor.role.id.clone(),
                 must_change_password: actor.must_change_password,
                 totp_enabled: actor.totp_enabled,
+                totp_recovery_left: if actor.totp_enabled {
+                    self.users.count_recovery(&actor.user_id).await?
+                } else {
+                    0
+                },
             },
             csrf,
             company: self.settings.company().await?,

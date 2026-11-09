@@ -30,7 +30,7 @@ export class EditorController extends AppCore {
       this._ze = this._ze || {};
       if (!el) { delete this._ze[z]; return; }
       this._ze[z] = el;
-      el.contentEditable = "true"; el.spellcheck = false;
+      el.contentEditable = "true"; el.spellcheck = false; el.dataset.docEdit = "1";
       el.innerHTML = cleanHtml(this._zh[z] || "");
       this.relabel(el);
       el.oninput = () => this.syncZones(false, true);

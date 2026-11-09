@@ -1,4 +1,5 @@
-# Kullanım: DOSYAPI_PUBLIC_URL=https://dosya.sirket.com docker compose up -d
+# Kaynaktan derleyip denemek için. Sunucu kurulumu: deploy/kur.sh (docs/KURULUM.md).
+# Kullanım: DOSYAPI_PUBLIC_URL=http://127.0.0.1:8080 docker compose up -d --build
 # Kurulum belirteci: docker compose logs dosyapi
 services:
   dosyapi:

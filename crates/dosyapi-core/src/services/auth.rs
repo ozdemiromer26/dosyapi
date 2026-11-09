@@ -167,7 +167,10 @@ impl AuthService {
                 return Err(AppError::TotpRequired);
             }
             self.limit(format!("totp:{}", user.id), 5, 300)?;
-            if !self.totp.verify(secret, code, now) {
+            if !self
+                .second_factor(&user.id, secret, code, now, meta)
+                .await?
+            {
                 self.audit
                     .user_at(&user.id, meta, "login.totp_failed", "")
                     .await?;
@@ -427,7 +430,86 @@ impl AuthService {
         self.token_service.csrf_valid(token_hash, candidate)
     }
 
+    /// İkinci adım: 6 haneli kod tek kullanımlıktır (zaman adımı yalnızca ileri gider);
+    /// kurtarma kodu biçimindeki giriş tek seferde silinerek tüketilir.
+    async fn second_factor(
+        &self,
+        user_id: &str,
+        secret: &str,
+        code: &str,
+        now: Timestamp,
+        meta: &RequestMeta,
+    ) -> AppResult<bool> {
+        if let Some(normalized) = recovery_shape(code) {
+            let used = self
+                .users
+                .consume_recovery(user_id, &recovery_hash(user_id, &normalized))
+                .await?;
+            if used {
+                self.audit
+                    .user_at(user_id, meta, "login.recovery_used", "")
+                    .await?;
+            }
+            return Ok(used);
+        }
+        match self.totp.verify(secret, code, now) {
+            Some(step) => self.users.advance_totp_step(user_id, step).await,
+            None => Ok(false),
+        }
+    }
+
+    async fn issue_recovery(&self, user_id: &str) -> AppResult<Vec<String>> {
+        let codes = self.totp.recovery_codes(RECOVERY_COUNT);
+        let hashes: Vec<String> = codes
+            .iter()
+            .filter_map(|c| recovery_shape(c).map(|n| recovery_hash(user_id, &n)))
+            .collect();
+        self.users.replace_recovery(user_id, &hashes).await?;
+        Ok(codes)
+    }
+
+    pub async fn recovery_left(&self, user_id: &str) -> AppResult<i64> {
+        self.users.count_recovery(user_id).await
+    }
+
+    /// Yeni kurtarma kodları üretir; eskilerin hepsi geçersiz olur. Mevcut şifre gerekir.
+    pub async fn totp_recovery_regenerate(
+        &self,
+        actor: &Actor,
+        password: &str,
+        meta: &RequestMeta,
+    ) -> AppResult<Vec<String>> {
+        self.limit(format!("totp:{}", actor.user_id), 5, 300)?;
+        let user = self
+            .users
+            .get(&actor.user_id)
+            .await?
+            .ok_or(AppError::Unauthorized)?;
+        if !self.hasher.verify(&user.password_hash, password) {
+            return Err(AppError::validation("Mevcut şifre hatalı."));
+        }
+        if !user.totp_enabled {
+            return Err(AppError::conflict("İki adımlı doğrulama kapalı."));
+        }
+        let codes = self.issue_recovery(&user.id).await?;
+        self.audit
+            .user_at(&user.id, meta, "totp.recovery_regenerated", "")
+            .await?;
+        Ok(codes)
+    }
+
     pub async fn totp_begin(&self, actor: &Actor) -> AppResult<(String, String)> {
+        // Açıkken yeniden kurulum, şifre sormadan doğrulamayı kapatmak demek olurdu.
+        let enabled = self
+            .users
+            .get(&actor.user_id)
+            .await?
+            .is_some_and(|u| u.totp_enabled);
+        if enabled {
+            return Err(AppError::conflict(
+                "İki adımlı doğrulama zaten açık; yeniden kurmak için önce kapatın.",
+            ));
+        }
         let secret = self.totp.new_secret();
         let issuer = self.settings.company().await?.name;
         let uri = self.totp.provisioning_uri(&secret, &actor.email, &issuer)?;
@@ -442,21 +524,31 @@ impl AuthService {
         actor: &Actor,
         code: &str,
         meta: &RequestMeta,
-    ) -> AppResult<()> {
+    ) -> AppResult<Vec<String>> {
         self.limit(format!("totp:{}", actor.user_id), 5, 300)?;
         let user = self
             .users
             .get(&actor.user_id)
             .await?
             .ok_or(AppError::Unauthorized)?;
+        if user.totp_enabled {
+            return Err(AppError::conflict("İki adımlı doğrulama zaten açık."));
+        }
         let secret = user
             .totp_secret
             .ok_or_else(|| AppError::validation("Önce kurulum başlatın."))?;
-        if !self.totp.verify(&secret, code, self.clock.now()) {
-            return Err(AppError::validation("Kod hatalı."));
-        }
+        let step = self
+            .totp
+            .verify(&secret, code, self.clock.now())
+            .ok_or_else(|| AppError::validation("Kod hatalı."))?;
         self.users.set_totp(&user.id, Some(&secret), true).await?;
-        self.audit.user_at(&user.id, meta, "totp.enabled", "").await
+        // Kurulumda kullanılan kod girişte bir daha geçmez.
+        self.users.advance_totp_step(&user.id, step).await?;
+        let codes = self.issue_recovery(&user.id).await?;
+        self.audit
+            .user_at(&user.id, meta, "totp.enabled", "")
+            .await?;
+        Ok(codes)
     }
 
     pub async fn totp_disable(
@@ -481,9 +573,58 @@ impl AuthService {
     }
 }
 
+/// Açılışta verilen kurtarma kodu sayısı.
+pub const RECOVERY_COUNT: usize = 10;
+
+/// Kurtarma kodu biçimi: tire ve boşluklar hariç 12 harf/rakam, en az bir harf
+/// (yalnızca rakamdan oluşan giriş 6 haneli TOTP kodu sayılır). Küçük harfe çevrilmiş hâli döner.
+fn recovery_shape(code: &str) -> Option<String> {
+    if code.len() > 40 {
+        return None;
+    }
+    let n: String = code
+        .chars()
+        .filter(|c| *c != '-' && !c.is_whitespace())
+        .map(|c| c.to_ascii_lowercase())
+        .collect();
+    let ok = n.len() == 12
+        && n.chars().all(|c| c.is_ascii_alphanumeric())
+        && n.chars().any(|c| c.is_ascii_alphabetic());
+    ok.then_some(n)
+}
+
+/// Kullanıcıya bağlı özet: aynı kod başka bir hesapta işe yaramaz. Kodlar ~59 bit rastgele
+/// olduğu için yavaş özet gerekmez; deneme sayısı da oran sınırıyla kısıtlı.
+fn recovery_hash(user_id: &str, normalized: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(format!("dosyapi-recovery:{user_id}:{normalized}").as_bytes());
+    digest.iter().map(|b| format!("{b:02x}")).collect()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::lockout_seconds;
+    use super::{lockout_seconds, recovery_hash, recovery_shape};
+
+    #[test]
+    fn recovery_codes_are_normalized_and_bound_to_user() {
+        assert_eq!(
+            recovery_shape("AB3D-EF4H-JK5M").as_deref(),
+            Some("ab3def4hjk5m")
+        );
+        assert_eq!(
+            recovery_shape(" ab3d ef4h jk5m ").as_deref(),
+            Some("ab3def4hjk5m")
+        );
+        // Yalnızca rakam: TOTP kodu sayılır, kurtarma kodu değil.
+        assert!(recovery_shape("123456789012").is_none());
+        assert!(recovery_shape("123456").is_none());
+        assert!(recovery_shape("ab3d-ef4h").is_none());
+        assert!(recovery_shape("ab3d-ef4h-jk5m'--").is_none());
+        assert_ne!(
+            recovery_hash("u1", "ab3def4hjk5m"),
+            recovery_hash("u2", "ab3def4hjk5m")
+        );
+    }
 
     #[test]
     fn lockout_grows_and_is_bounded() {

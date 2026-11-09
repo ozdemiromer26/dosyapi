@@ -24,7 +24,7 @@ function initialState() {
     gen: null, genBusy: "", tplDraft: null, tplMode: "edit", tplDirty: false, edPop: null, edInTable: false, edImg: false,
     tplSide: "vars", tplSample: "", varQ: "", zoom: { gen: "fit", tpl: "fit" }, zoomLbl: {}, varOpen: { genel: true, proje: true },
     tbCols: { muellifler: ["sira", "adSoyad", "meslek", "tc", "telefon"], arsaSahipleri: ["sira", "ad", "tc", "hisse", "imza"] },
-    noticeAccepted: false, privacyNotice: "", undo: null, updateInfo: null, backups: [], audit: [], auditOk: null, dns: null, dnsChecks: [], smtp: null, totpSetup: null, masterTotpSetup: null, busy: "",
+    noticeAccepted: false, privacyNotice: "", undo: null, updateInfo: null, backups: [], audit: [], auditOk: null, dns: null, dnsChecks: [], smtp: null, totpSetup: null, masterTotpSetup: null, recoveryCodes: null, busy: "",
   };
 }
 
