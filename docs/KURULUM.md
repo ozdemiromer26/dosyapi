@@ -6,40 +6,49 @@ Gerekenler: Ubuntu/Debian gibi bir Linux sunucu (1 GB RAM yeterli) ve DNS'te sun
 (ör. `dosya.sirket.com` için A kaydı).
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ozdemiromer26/dosyapi/main/deploy/kur.sh | sudo bash -s -- --alan-adi dosya.sirket.com
+curl -fsSL https://raw.githubusercontent.com/ozdemiromer26/dosyapi/main/deploy/kur.sh | sudo bash -s -- --domain dosya.sirket.com
 ```
 
 Betik sırasıyla:
 
 1. Alan adının bu sunucuyu gösterip göstermediğini ve 80/443 portlarının boş olduğunu denetler.
-2. Docker yoksa resmi betikle kurar (onay ister; `--evet` ile sormaz).
-3. `/opt/dosyapi` altına `compose.yml`, `Caddyfile` ve `.env` yazar; yönetim aracını `/usr/local/bin/dosyapi-ctl` olarak kurar.
-4. Uygulamayı ve Caddy'yi başlatır. Caddy HTTPS sertifikasını Let's Encrypt'ten kendisi alır ve yeniler.
-5. Adresi ve tek kullanımlık **kurulum belirtecini** ekrana yazar.
+2. Docker yoksa resmi betikle kurar (onay ister; `--yes` ile sormaz).
+3. Hazır imajı indirir. İmaj bulunamazsa (henüz yayınlanmamışsa) sunucuda kaynak koddan derlemeyi önerir.
+4. `/opt/dosyapi` altına `compose.yml`, `Caddyfile` ve `.env` yazar; yönetim aracını `/usr/local/bin/dosyapi-ctl` olarak kurar.
+5. Uygulamayı ve Caddy'yi başlatır. Caddy HTTPS sertifikasını Let's Encrypt'ten kendisi alır ve yeniler.
+6. Adresi ve tek kullanımlık **kurulum belirtecini** ekrana yazar.
 
 Tarayıcıdan adresi açıp belirteci girin; şirket adı, master şifre ve ilk yönetici hesabını oluşturun.
 
-Seçenekler: `--surum 1.2.3` (belirli sürüm), `--otomatik-guncelleme` (her gece yedek alıp günceller), `--evet`,
-`--kaynaktan` (hazır imaj yerine sunucuda kaynak koddan derler; yayın imajı yokken kullanılır, 10-20 dakika sürer,
-bellek 3 GB'tan azsa derleme süresince geçici takas alanı açılır, Docker diskinde ~6 GB boş yer gerekir).
-Kaynak kurulumunda `dosyapi-ctl guncelle` de yeni sürümü sunucuda derler.
+Kurulum yarıda kalırsa ya da `uninstall` ile kaldırıldıysa betik yeniden çalıştırılabilir: çalışan bir kurulum yoksa
+kaldığı yerden devam eder, mevcut veriler (`/opt/dosyapi/data`) korunur.
+
+| Seçenek | Ne yapar |
+| --- | --- |
+| `--domain <ad>` | Alan adı (verilmezse sorulur) |
+| `--version 1.2.3` | Belirli bir sürüm |
+| `--from-source` | Hazır imaj yerine sunucuda kaynak koddan derler (10-30 dakika; bellek 3 GB'tan azsa derleme süresince geçici takas açılır; Docker diskinde ~6 GB boş yer gerekir). Kaynak kurulumunda `dosyapi-ctl update` de yeni sürümü sunucuda derler. |
+| `--auto-update` | Her gece yedek alıp en yeni sürüme geçer |
+| `--yes` | Soru sormadan devam eder |
 
 Alan adınız yoksa denemek için IP'den türetilen bir ad kullanabilirsiniz: sunucu IP'si `203.0.113.5` ise
-`--alan-adi 203-0-113-5.sslip.io`. Bu ad doğrudan sunucuya çözülür ve Let's Encrypt sertifikası alınabilir.
+`--domain 203-0-113-5.sslip.io`. Bu ad doğrudan sunucuya çözülür ve Let's Encrypt sertifikası alınabilir.
 
 ### Yönetim
 
 | Komut | Ne yapar |
 | --- | --- |
-| `sudo dosyapi-ctl durum` | Servisler, sürüm, adres |
-| `sudo dosyapi-ctl gunluk -f` | Canlı günlük |
-| `sudo dosyapi-ctl yedekle` | Tutarlı yedek (birkaç saniyelik kesinti) → `/opt/dosyapi/yedekler` |
-| `sudo dosyapi-ctl geri-yukle <dosya>` | Yedekten döner; mevcut veri `data.eski-*` olarak kenara alınır |
-| `sudo dosyapi-ctl guncelle [sürüm]` | Önce yedek alır, yeni imaja geçer; sağlıklı açılmazsa önceki sürüme döner |
-| `sudo dosyapi-ctl otomatik-guncelleme ac\|kapat` | Gece güncellemesi (04:00 civarı) |
-| `sudo dosyapi-ctl belirtec` | Yeni kurulum belirteci (ilk kurulum bitmediyse) |
-| `sudo dosyapi-ctl master-sifirla` | Master şifreyi ve master iki adımlı doğrulamayı sıfırlar |
-| `sudo dosyapi-ctl kaldir` | Servisleri kaldırır; veriler kalır |
+| `sudo dosyapi-ctl status` | Servisler, sürüm, adres |
+| `sudo dosyapi-ctl logs -f` | Canlı günlük |
+| `sudo dosyapi-ctl start` / `restart` | Başlat / yeniden başlat |
+| `sudo dosyapi-ctl backup` | Tutarlı yedek (çalışıyorsa birkaç saniyelik kesinti) → `/opt/dosyapi/yedekler` |
+| `sudo dosyapi-ctl restore <file>` | Yedekten döner; mevcut veri `data.eski-*` olarak kenara alınır |
+| `sudo dosyapi-ctl update [version]` | Önce yedek alır, yeni sürüme geçer; sağlıklı açılmazsa önceki sürüme döner |
+| `sudo dosyapi-ctl build [ref]` | Kaynak koddan imaj derler (`main` ya da `v1.2.3`) |
+| `sudo dosyapi-ctl auto-update on\|off` | Gece güncellemesi (04:00 civarı) |
+| `sudo dosyapi-ctl token` | Yeni kurulum belirteci (ilk kurulum bitmediyse) |
+| `sudo dosyapi-ctl master-reset` | Master şifreyi ve master iki adımlı doğrulamayı sıfırlar |
+| `sudo dosyapi-ctl uninstall` | Servisleri kaldırır; veriler kalır |
 
 Yedek arşivi gizli anahtarı da içerir: sunucu dışında, güvenli bir yerde saklayın. Arşivi kaybetmek veriyi kaybetmek,
 başkasının eline geçmesi veriyi açması demektir.
@@ -52,7 +61,7 @@ başkasının eline geçmesi veriyi açması demektir.
 | `/opt/dosyapi/data/config.toml` | Uygulama yapılandırması |
 | `/opt/dosyapi/data/secret.key` | Ana şifreleme anahtarı |
 | `/opt/dosyapi/data/app` | Veritabanı, şifreli dosyalar, uygulama içi yedekler |
-| `/opt/dosyapi/yedekler` | `dosyapi-ctl yedekle` arşivleri (son 14 tanesi tutulur) |
+| `/opt/dosyapi/yedekler` | `dosyapi-ctl backup` arşivleri (son 14 tanesi tutulur) |
 
 ### Güvenlik notları
 

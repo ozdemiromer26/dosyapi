@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # dosyapı sunucu yönetim aracı (Docker kurulumu). kur.sh tarafından /usr/local/bin altına kurulur.
-# Kullanım: sudo dosyapi-ctl <komut>   — komut listesi için: dosyapi-ctl yardim
+# Kullanım: sudo dosyapi-ctl <command>   — komut listesi için: dosyapi-ctl help
 set -euo pipefail
 
 DIR="${DOSYAPI_DIR:-/opt/dosyapi}"
@@ -10,8 +10,13 @@ APP_UID=10001
 
 die() { echo "Hata: $*" >&2; exit 1; }
 info() { echo "› $*"; }
+yes_no() {
+  local answer
+  read -r -p "$1 (evet/hayır) " answer < /dev/tty
+  case "${answer,,}" in evet|e|yes|y) return 0 ;; *) return 1 ;; esac
+}
 
-case "${1:-yardim}" in yardim|help|-h|--help) ;; *)
+case "${1:-help}" in help|-h|--help|yardim) ;; *)
   [ -f "$DIR/compose.yml" ] || die "$DIR altında kurulum bulunamadı."
   [ "$(id -u)" -eq 0 ] || die "Bu komut root yetkisi ister: sudo dosyapi-ctl $*"
   cd "$DIR" ;;
@@ -28,6 +33,9 @@ env_set() {
   chmod 600 "$tmp"
   mv "$tmp" "$DIR/.env"
 }
+
+# Uygulama konteyneri çalışıyor mu?
+running() { [ -n "$(dc ps -q --status running dosyapi 2>/dev/null || true)" ]; }
 
 # Uygulama sağlıklı mı? Caddy imajındaki wget ile iç ağdan /healthz sorulur.
 healthy() {
@@ -75,10 +83,12 @@ drop_swap() {
 }
 
 # Kaynak koddan imaj derler; yalnızca yeni imaj etiketini stdout'a yazar.
-# Kullanım: dosyapi-ctl derle [ref] [depo]   (ref: main ya da v1.2.3)
+# Kullanım: dosyapi-ctl build [ref] [repo]   (ref: main ya da v1.2.3)
 cmd_build() {
-  local ref="${1:-main}" repo="${2:-}" src="$DIR/kaynak" tag avail
-  [ -n "$repo" ] || repo="$(env_get DOSYAPI_REPO 2>/dev/null || true)"
+  local ref="${1:-}" repo="${2:-}" src="$DIR/kaynak" tag avail
+  [ -n "$ref" ] || ref="$(env_get DOSYAPI_SOURCE_REF)"
+  ref="${ref:-main}"
+  [ -n "$repo" ] || repo="$(env_get DOSYAPI_REPO)"
   [ -n "$repo" ] || die "Depo bilinmiyor (DOSYAPI_REPO)."
   [[ "$ref" =~ ^[A-Za-z0-9._/-]+$ ]] || die "Geçersiz kaynak dalı/etiketi: $ref"
   avail="$(df -Pk /var/lib/docker 2>/dev/null | awk 'NR==2{print $4}' || echo 0)"
@@ -91,7 +101,7 @@ cmd_build() {
   tag="dosyapi-yerel:$(date +%Y%m%d%H%M%S)"
   ensure_swap
   trap drop_swap EXIT
-  echo "› Derleniyor: $tag (10-20 dakika sürebilir)" >&2
+  echo "› Derleniyor: $tag (tek çekirdekli sunucuda 20-30 dakika sürebilir)" >&2
   if ! docker build -t "$tag" "$src" >&2; then
     die "Derleme başarısız. Bellek yetmediyse sunucuya takas ekleyip tekrar deneyin."
   fi
@@ -104,45 +114,58 @@ cmd_build() {
 
 cmd_status() {
   dc ps
-  if healthy; then echo "Uygulama: çalışıyor"; else echo "Uygulama: YANIT VERMİYOR"; fi
+  if healthy; then echo "Uygulama: çalışıyor"
+  elif running; then echo "Uygulama: açılıyor ya da YANIT VERMİYOR (dosyapi-ctl logs)"
+  else echo "Uygulama: ÇALIŞMIYOR (başlatmak için: sudo dosyapi-ctl start)"; fi
   echo "Sürüm imajı: $(env_get DOSYAPI_IMAGE_REF)"
   echo "Adres: https://$(env_get DOSYAPI_DOMAIN)"
   echo "Veri: $DIR/data   Yedekler: $BACKUPS"
 }
 
-# Tutarlı yedek: uygulama birkaç saniye durdurulur, veri klasörü (veritabanı, şifreli dosyalar,
-# yapılandırma ve gizli anahtar) arşivlenir, sonra yeniden başlatılır.
+cmd_start() {
+  dc up -d
+  if wait_healthy 90; then info "Çalışıyor: https://$(env_get DOSYAPI_DOMAIN)"
+  else die "Uygulama 90 sn içinde yanıt vermedi. Günlükler: sudo dosyapi-ctl logs"; fi
+}
+
+# Tutarlı yedek: uygulama çalışıyorsa birkaç saniye durdurulur, veri klasörü (veritabanı,
+# şifreli dosyalar, yapılandırma ve gizli anahtar) arşivlenir, sonra yeniden başlatılır.
 cmd_backup() {
-  local stamp file
+  local stamp file was_running=0
+  [ -d "$DIR/data" ] || die "Yedeklenecek veri yok ($DIR/data)."
   install -d -m 0700 "$BACKUPS"
   stamp="$(date +%Y%m%d-%H%M%S)"
   file="$BACKUPS/dosyapi-$stamp.tar.gz"
-  info "Uygulama kısa süreliğine durduruluyor…"
-  dc stop dosyapi >/dev/null
+  if running; then
+    was_running=1
+    info "Uygulama kısa süreliğine durduruluyor…"
+    dc stop dosyapi >/dev/null
+  fi
   tar -czf "$file" -C "$DIR" data .env
   chmod 600 "$file"
-  dc start dosyapi >/dev/null
+  [ "$was_running" = 1 ] && dc start dosyapi >/dev/null
   info "Yedek: $file ($(du -h "$file" | cut -f1))"
   echo "  Bu arşiv gizli anahtarı da içerir; sunucu dışında güvenli bir yerde saklayın."
   # Eski yedekleri temizle (en yeni $KEEP_BACKUPS kalır).
   # Dosya adları yalnızca dosyapi-YYYYmmdd-HHMMSS.tar.gz olduğu için ls sıralaması güvenli.
   # shellcheck disable=SC2012
   ls -1t "$BACKUPS"/dosyapi-*.tar.gz 2>/dev/null | tail -n +"$((KEEP_BACKUPS + 1))" | xargs -r rm -f
-  wait_healthy 60 || echo "Uyarı: yedekten sonra uygulama henüz yanıt vermiyor; 'dosyapi-ctl logs' ile bakın." >&2
+  if [ "$was_running" = 1 ]; then
+    wait_healthy 60 || echo "Uyarı: yedekten sonra uygulama henüz yanıt vermiyor; 'dosyapi-ctl logs' ile bakın." >&2
+  fi
 }
 
 cmd_restore() {
   local file="${1:-}" stamp
-  [ -f "$file" ] || die "Yedek dosyası verin: dosyapi-ctl geri-yukle $BACKUPS/dosyapi-....tar.gz"
+  [ -f "$file" ] || die "Yedek dosyası verin: dosyapi-ctl restore $BACKUPS/dosyapi-....tar.gz"
   tar -tzf "$file" data/config.toml >/dev/null 2>&1 || die "Bu dosya bir dosyapı yedeği değil."
   echo "Mevcut veriler $DIR/data.eski-* olarak kenara alınacak ve yedek geri yüklenecek."
-  if [ "${2:-}" != "--evet" ]; then
-    read -r -p "Devam edilsin mi? (evet/hayır) " answer < /dev/tty
-    [ "$answer" = "evet" ] || die "Vazgeçildi."
+  if [ "${2:-}" != "--yes" ]; then
+    yes_no "Devam edilsin mi?" || die "Vazgeçildi."
   fi
   stamp="$(date +%Y%m%d-%H%M%S)"
-  dc stop dosyapi >/dev/null
-  mv "$DIR/data" "$DIR/data.eski-$stamp"
+  dc stop dosyapi >/dev/null 2>&1 || true
+  [ -d "$DIR/data" ] && mv "$DIR/data" "$DIR/data.eski-$stamp"
   tar -xzf "$file" -C "$DIR" data
   chown -R "$APP_UID:$APP_UID" "$DIR/data"
   chmod 700 "$DIR/data"
@@ -158,7 +181,7 @@ cmd_restore() {
 cmd_update() {
   local target="${1:-}" image previous new_ref ref
   image="$(env_get DOSYAPI_IMAGE)"
-  [ -n "$image" ] || die ".env içinde DOSYAPI_IMAGE yok."
+  [ -n "$image" ] || die ".env içinde DOSYAPI_IMAGE yok; kurulum tamamlanmamış. Yeniden kurun (kur.sh)."
   if [ -n "$target" ]; then
     [[ "$target" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || die "Geçersiz sürüm: $target"
   fi
@@ -195,10 +218,11 @@ cmd_update() {
     dc up -d
     wait_healthy 90 && die "Önceki sürüme dönüldü ($previous). Günlükler: dosyapi-ctl logs"
   fi
-  die "Uygulama açılmıyor. Son yedekten dönmek için: dosyapi-ctl geri-yukle <yedek>"
+  die "Uygulama açılmıyor. Son yedekten dönmek için: dosyapi-ctl restore <yedek>"
 }
 
 cmd_token() {
+  running || die "Uygulama çalışmıyor. Önce başlatın: sudo dosyapi-ctl start"
   app setup-token
   dc restart dosyapi >/dev/null
   wait_healthy 60 || true
@@ -207,14 +231,14 @@ cmd_token() {
 
 cmd_auto_update() {
   case "${1:-}" in
-    ac)
+    on|ac)
       cat > /etc/systemd/system/dosyapi-update.service <<UNIT
 [Unit]
 Description=dosyapı otomatik güncelleme
 After=docker.service
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/dosyapi-ctl guncelle
+ExecStart=/usr/local/bin/dosyapi-ctl update
 UNIT
       cat > /etc/systemd/system/dosyapi-update.timer <<UNIT
 [Unit]
@@ -229,55 +253,65 @@ UNIT
       systemctl daemon-reload
       systemctl enable --now dosyapi-update.timer
       info "Otomatik güncelleme açık: her gece 04:00 civarı (öncesinde yedek alınır)." ;;
-    kapat)
+    off|kapat)
       systemctl disable --now dosyapi-update.timer 2>/dev/null || true
       rm -f /etc/systemd/system/dosyapi-update.service /etc/systemd/system/dosyapi-update.timer
       systemctl daemon-reload
       info "Otomatik güncelleme kapalı." ;;
-    *) die "Kullanım: dosyapi-ctl otomatik-guncelleme ac|kapat" ;;
+    *) die "Kullanım: dosyapi-ctl auto-update on|off" ;;
   esac
 }
 
 cmd_uninstall() {
-  echo "Servisler durdurulup kaldırılacak. Veriler ($DIR/data) ve yedekler SİLİNMEZ."
-  read -r -p "Devam edilsin mi? (evet/hayır) " answer < /dev/tty
-  [ "$answer" = "evet" ] || die "Vazgeçildi."
-  cmd_auto_update kapat >/dev/null 2>&1 || true
+  echo "Servisler durdurulup kaldırılacak. Veriler ($DIR/data) ve yedekler SİLİNMEZ;"
+  echo "kur.sh yeniden çalıştırılırsa aynı verilerle kurulur."
+  yes_no "Devam edilsin mi?" || die "Vazgeçildi."
+  cmd_auto_update off >/dev/null 2>&1 || true
   dc down
-  info "Kaldırıldı. Verileri tamamen silmek isterseniz elle silin: rm -rf $DIR"
+  info "Kaldırıldı. Verileri de tamamen silmek için: sudo rm -rf $DIR"
 }
 
 usage() {
   cat <<'HELP'
-dosyapı yönetim aracı
+dosyapı yönetim aracı — kullanım: sudo dosyapi-ctl <command>
 
-  durum                     Servislerin durumu, sürüm ve adres
-  gunluk [-f]               Uygulama günlükleri (-f: canlı izle)
-  yedekle                   Tutarlı yedek al (birkaç saniyelik kesinti)
-  geri-yukle <dosya>        Yedekten geri yükle
-  guncelle [sürüm]          Yedek alıp en yeni (ya da belirtilen) sürüme geç; sorun olursa geri döner
+  status                    Servislerin durumu, sürüm ve adres
+  logs [-f]                 Uygulama günlükleri (-f: canlı izle)
+  start                     Servisleri başlat
+  restart                   Servisleri yeniden başlat
+  backup                    Tutarlı yedek al (çalışıyorsa birkaç saniyelik kesinti)
+  restore <file> [--yes]    Yedekten geri yükle
+  update [version]          Yedek alıp en yeni (ya da belirtilen) sürüme geç; sorun olursa geri döner
                             (kaynak kurulumunda sunucuda yeniden derler)
-  otomatik-guncelleme ac|kapat
-  yeniden-baslat            Uygulamayı yeniden başlat
-  belirtec                  Yeni ilk kurulum belirteci üret
-  master-sifirla            Master şifreyi ve master iki adımlı doğrulamayı sıfırla
-  kaldir                    Servisleri kaldır (veriler kalır)
+  build [ref]               Kaynak koddan imaj derle (ref: main ya da v1.2.3)
+  auto-update on|off        Gece otomatik güncelleme
+  token                     Yeni ilk kurulum belirteci üret
+  master-reset              Master şifreyi ve master iki adımlı doğrulamayı sıfırla
+  uninstall                 Servisleri kaldır (veriler kalır)
 HELP
 }
 
-case "${1:-yardim}" in
-  durum|status) cmd_status ;;
-  gunluk|logs) shift; dc logs --tail 200 "$@" dosyapi ;;
-  yedekle|backup) cmd_backup ;;
-  geri-yukle|restore) shift; cmd_restore "$@" ;;
-  guncelle|update) shift; cmd_update "$@" ;;
-  derle|build) shift; cmd_build "$@" ;;
-  otomatik-guncelleme|auto-update) shift; cmd_auto_update "$@" ;;
-  yeniden-baslat|restart) dc restart; wait_healthy 60 && info "Çalışıyor." ;;
-  belirtec|token) cmd_token ;;
+# Türkçe eski adlar uyumluluk için kabul edilir.
+case "${1:-help}" in
+  status|durum) cmd_status ;;
+  logs|gunluk) shift; dc logs --tail 200 "$@" dosyapi ;;
+  start|baslat) cmd_start ;;
+  restart|yeniden-baslat)
+    if running; then
+      dc restart
+      if wait_healthy 90; then info "Çalışıyor."; else die "Yanıt yok; günlükler: sudo dosyapi-ctl logs"; fi
+    else cmd_start; fi ;;
+  backup|yedekle) cmd_backup ;;
+  restore|geri-yukle) shift; cmd_restore "$@" ;;
+  update|guncelle) shift; cmd_update "$@" ;;
+  build|derle) shift; cmd_build "$@" ;;
+  auto-update|otomatik-guncelleme) shift; cmd_auto_update "$@" ;;
+  token|belirtec) cmd_token ;;
   # Yeni şifreyi terminalden sorar; bu yüzden etkileşimli (-T olmadan) çalışır.
-  master-sifirla|master-reset) dc exec dosyapi dosyapi --config /data/config.toml master-reset ;;
-  kaldir|uninstall) cmd_uninstall ;;
-  yardim|help|-h|--help) usage ;;
-  *) usage; exit 1 ;;
+  master-reset|master-sifirla)
+    running || die "Uygulama çalışmıyor. Önce başlatın: sudo dosyapi-ctl start"
+    dc exec dosyapi dosyapi --config /data/config.toml master-reset ;;
+  uninstall|kaldir) cmd_uninstall ;;
+  help|-h|--help|yardim) usage ;;
+  *) echo "Bilinmeyen komut: $1" >&2; echo >&2; usage >&2; exit 1 ;;
 esac

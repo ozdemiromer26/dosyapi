@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # dosyapı tek komutla kurulum (Docker + otomatik HTTPS).
 #
-#   curl -fsSL https://raw.githubusercontent.com/ozdemiromer26/dosyapi/main/deploy/kur.sh | sudo bash -s -- --alan-adi dosya.sirket.com
+#   curl -fsSL https://raw.githubusercontent.com/ozdemiromer26/dosyapi/main/deploy/kur.sh | sudo bash -s -- --domain dosya.sirket.com
 #
 # Seçenekler:
-#   --alan-adi <ad>        Sunucunun alan adı (DNS A/AAAA kaydı bu sunucuyu göstermeli). Verilmezse sorulur.
-#   --surum <x.y.z>        Belirli bir sürüm (varsayılan: en yeni).
-#   --kaynaktan            Hazır imajı indirmek yerine sunucuda kaynak koddan derler
-#                          (yayın imajı yokken; ~10-20 dk, en az 2 GB RAM ya da takas).
-#   --otomatik-guncelleme  Her gece yedek alıp en yeni sürüme geçer.
-#   --evet                 Soru sormadan devam eder (Docker kurulumu dahil).
+#   --domain <ad>      Sunucunun alan adı (DNS A kaydı bu sunucuyu göstermeli). Verilmezse sorulur.
+#   --version <x.y.z>  Belirli bir sürüm (varsayılan: en yeni).
+#   --from-source      Hazır imajı indirmek yerine sunucuda kaynak koddan derler. Hazır imaj
+#                      bulunamazsa betik bunu kendisi önerir. (~10-30 dk; bellek azsa geçici takas açılır)
+#   --auto-update      Her gece yedek alıp en yeni sürüme geçer.
+#   --yes              Soru sormadan devam eder (Docker kurulumu ve kaynaktan derleme dahil).
 set -euo pipefail
 
 # Yayınlandığı GitHub deposu (küçük harf). Çatal (fork) için DOSYAPI_REPO ile değiştirilebilir.
@@ -18,16 +18,31 @@ IMAGE="${DOSYAPI_IMAGE:-ghcr.io/${REPO}}"
 DIR=/opt/dosyapi
 APP_UID=10001
 
+# Betik borudan (curl | bash) çalıştığında dosyası olmadığı için yardım burada tutulur.
+usage() {
+  cat <<'HELP'
+dosyapı kurulumu — kullanım:
+  curl -fsSL https://raw.githubusercontent.com/ozdemiromer26/dosyapi/main/deploy/kur.sh | sudo bash -s -- --domain dosya.sirket.com
+
+  --domain <ad>      Sunucunun alan adı (DNS A kaydı bu sunucuyu göstermeli). Verilmezse sorulur.
+  --version <x.y.z>  Belirli bir sürüm (varsayılan: en yeni).
+  --from-source      Hazır imaj yerine sunucuda kaynak koddan derler (hazır imaj yoksa betik önerir).
+  --auto-update      Her gece yedek alıp en yeni sürüme geçer.
+  --yes              Soru sormadan devam eder.
+HELP
+}
+
 DOMAIN="" VERSION="" AUTO_UPDATE=0 YES=0 SOURCE=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --alan-adi) DOMAIN="${2:-}"; shift 2 ;;
-    --surum) VERSION="${2:-}"; shift 2 ;;
-    --kaynaktan) SOURCE=1; shift ;;
-    --otomatik-guncelleme) AUTO_UPDATE=1; shift ;;
-    --evet) YES=1; shift ;;
-    -h|--help) sed -n '2,14p' "$0" 2>/dev/null || true; exit 0 ;;
-    *) echo "Bilinmeyen seçenek: $1" >&2; exit 1 ;;
+    # Türkçe eski adlar uyumluluk için kabul edilir.
+    --domain|--alan-adi) DOMAIN="${2:-}"; shift 2 ;;
+    --version|--surum) VERSION="${2:-}"; shift 2 ;;
+    --from-source|--kaynaktan) SOURCE=1; shift ;;
+    --auto-update|--otomatik-guncelleme) AUTO_UPDATE=1; shift ;;
+    --yes|--evet) YES=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Bilinmeyen seçenek: $1 (yardım: --help)" >&2; exit 1 ;;
   esac
 done
 
@@ -35,7 +50,11 @@ say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 info() { echo "› $*"; }
 die() { echo "Hata: $*" >&2; exit 1; }
 ask() { local reply; read -r -p "$1 " reply < /dev/tty; echo "$reply"; }
-confirm() { [ "$YES" = 1 ] && return 0; [ "$(ask "$1 (evet/hayır)")" = "evet" ]; }
+confirm() {
+  [ "$YES" = 1 ] && return 0
+  case "$(ask "$1 (evet/hayır)" | tr '[:upper:]' '[:lower:]')" in evet|e|yes|y) return 0 ;; *) return 1 ;; esac
+}
+dc() { docker compose --project-directory "$DIR" -f "$DIR/compose.yml" "$@"; }
 
 say "dosyapı kurulumu"
 
@@ -47,14 +66,28 @@ case "$(uname -m)" in
   *) die "Desteklenmeyen işlemci mimarisi: $(uname -m)" ;;
 esac
 command -v curl >/dev/null || die "curl gerekli (ör. apt install curl)."
-[ -e "$DIR/.env" ] && die "Bu sunucuda zaten kurulum var. Güncellemek için: sudo dosyapi-ctl guncelle"
 if [ -n "$VERSION" ] && ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
   die "Geçersiz sürüm: $VERSION"
 fi
 
+# Önceki kurulum: çalışıyorsa dokunulmaz; yarım kalmış ya da kaldırılmışsa veriler korunarak yeniden kurulur.
+REINSTALL=0
+if [ -e "$DIR/.env" ] || [ -e "$DIR/compose.yml" ]; then
+  if command -v docker >/dev/null && [ -f "$DIR/compose.yml" ] \
+     && [ -n "$(dc ps -q --status running dosyapi 2>/dev/null || true)" ]; then
+    die "dosyapı bu sunucuda zaten çalışıyor. Güncellemek için: sudo dosyapi-ctl update"
+  fi
+  REINSTALL=1
+  if [ -f "$DIR/data/config.toml" ]; then
+    info "Önceki kurulumun verileri bulundu ($DIR/data); aynı verilerle yeniden kurulacak."
+  else
+    info "Yarım kalmış bir kurulum bulundu; kaldığı yerden devam ediliyor."
+  fi
+fi
+
 # 2) Alan adı
 if [ -z "$DOMAIN" ]; then
-  [ "$YES" = 1 ] && die "--alan-adi gerekli."
+  [ "$YES" = 1 ] && die "--domain gerekli."
   DOMAIN="$(ask "Alan adı (ör. dosya.sirket.com):")"
 fi
 DOMAIN="$(printf '%s' "$DOMAIN" | tr '[:upper:]' '[:lower:]')"
@@ -70,7 +103,8 @@ if [ -n "$PUBLIC_IP" ] && [ "$RESOLVED" != "$PUBLIC_IP" ]; then
 fi
 
 # 3) 80 ve 443 portları boş olmalı (Caddy sertifika ve trafik için kullanır).
-if command -v ss >/dev/null && ss -ltnH '( sport = :80 or sport = :443 )' | grep -q .; then
+#    Docker'ın kendi port yönlendiricisi (docker-proxy) sayılmaz.
+if command -v ss >/dev/null && ss -ltnpH '( sport = :80 or sport = :443 )' 2>/dev/null | grep -v docker-proxy | grep -q .; then
   die "80 ya da 443 portunu başka bir program kullanıyor (ör. nginx/apache). Önce onu durdurun."
 fi
 
@@ -84,9 +118,22 @@ if ! command -v docker >/dev/null || ! docker compose version >/dev/null 2>&1; t
 fi
 docker compose version >/dev/null 2>&1 || die "Docker Compose eklentisi bulunamadı."
 
-# 5) Dosyalar
-say "Dosyalar hazırlanıyor ($DIR)"
+# 5) İmaj: hazır imaj indirilebiliyor mu? Değilse kaynaktan derlemeyi öner.
 REF="main"; [ -n "$VERSION" ] && REF="v$VERSION"
+IMAGE_REF="$IMAGE:${VERSION:-latest}"
+if [ "$SOURCE" = 0 ]; then
+  info "Hazır imaj indiriliyor: $IMAGE_REF"
+  if ! docker pull -q "$IMAGE_REF" >/dev/null 2>&1; then
+    echo
+    echo "Hazır imaj indirilemedi ($IMAGE_REF): henüz yayınlanmamış ya da erişime kapalı olabilir."
+    echo "Bunun yerine sunucuda kaynak koddan derlenebilir (10-30 dakika; bellek azsa geçici takas açılır)."
+    confirm "Kaynak koddan derlensin mi?" || die "Vazgeçildi. Yayın imajı hazır olunca yeniden deneyin."
+    SOURCE=1
+  fi
+fi
+
+# 6) Dosyalar
+say "Dosyalar hazırlanıyor ($DIR)"
 RAW="${DOSYAPI_RAW:-https://raw.githubusercontent.com/$REPO/$REF/deploy/docker}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 install -d -m 0755 "$DIR"
@@ -113,12 +160,9 @@ fetch Caddyfile "$DIR/Caddyfile" 0644
 fetch dosyapi-ctl /usr/local/bin/dosyapi-ctl 0755
 
 if [ "$SOURCE" = 1 ]; then
-  say "Kaynak koddan derleniyor (10-20 dakika sürebilir)"
+  say "Kaynak koddan derleniyor (tek çekirdekli sunucuda 20-30 dakika sürebilir)"
   IMAGE="dosyapi-yerel"
-  BUILT="$(DOSYAPI_DIR="$DIR" DOSYAPI_FRESH=0 /usr/local/bin/dosyapi-ctl derle "$REF" "$REPO")"
-  IMAGE_REF="$BUILT"
-else
-  IMAGE_REF="$IMAGE:${VERSION:-latest}"
+  IMAGE_REF="$(DOSYAPI_DIR="$DIR" DOSYAPI_FRESH=0 /usr/local/bin/dosyapi-ctl build "$REF" "$REPO")"
 fi
 
 install -d -m 0700 -o "$APP_UID" -g "$APP_UID" "$DIR/data"
@@ -140,41 +184,42 @@ if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q "Status: active
   info "ufw: 80 ve 443 açıldı"
 fi
 
-# 6) Başlat
+# 7) Başlat
 say "Başlatılıyor"
-if [ "$SOURCE" = 1 ]; then
-  docker compose --project-directory "$DIR" -f "$DIR/compose.yml" pull caddy
-else
-  docker compose --project-directory "$DIR" -f "$DIR/compose.yml" pull \
-    || die "İmaj indirilemedi ($IMAGE_REF). Yayın imajı henüz yoksa kurulumu --kaynaktan ile tekrarlayın."
-fi
-docker compose --project-directory "$DIR" -f "$DIR/compose.yml" up -d
+dc pull caddy
+dc up -d
 
 ok=0
 for _ in $(seq 1 90); do
-  if docker compose --project-directory "$DIR" -f "$DIR/compose.yml" exec -T caddy \
-       wget -q -T 3 -O /dev/null http://dosyapi:8080/healthz >/dev/null 2>&1; then ok=1; break; fi
+  if dc exec -T caddy wget -q -T 3 -O /dev/null http://dosyapi:8080/healthz >/dev/null 2>&1; then ok=1; break; fi
   sleep 1
 done
-[ "$ok" = 1 ] || die "Uygulama açılmadı. Günlükler: sudo dosyapi-ctl gunluk"
+[ "$ok" = 1 ] || die "Uygulama açılmadı. Günlükler: sudo dosyapi-ctl logs"
 
-TOKEN="$(docker compose --project-directory "$DIR" -f "$DIR/compose.yml" logs --no-log-prefix dosyapi 2>/dev/null \
-  | sed -n 's/.*Kurulum belirteci: *//p' | tail -n1)"
+TOKEN="$(dc logs --no-log-prefix dosyapi 2>/dev/null | sed -n 's/.*Kurulum belirteci: *//p' | tail -n1)"
 
 if [ "$AUTO_UPDATE" = 1 ]; then
-  /usr/local/bin/dosyapi-ctl otomatik-guncelleme ac
+  /usr/local/bin/dosyapi-ctl auto-update on
 fi
 
 say "Kurulum tamamlandı"
+if [ -n "$TOKEN" ]; then
+  TOKEN_LINE="$TOKEN"
+elif [ "$REINSTALL" = 1 ]; then
+  TOKEN_LINE="(önceki veriler kullanıldı; ilk kurulum daha önce bitmediyse: sudo dosyapi-ctl token)"
+else
+  TOKEN_LINE="(alınamadı; 'sudo dosyapi-ctl token' ile yenisini üretin)"
+fi
 cat <<DONE
   Adres              : https://$DOMAIN
-  Kurulum belirteci  : ${TOKEN:-(alınamadı; 'sudo dosyapi-ctl belirtec' ile yenisini üretin)}
+  Kurulum belirteci  : $TOKEN_LINE
 
   Tarayıcıdan adresi açın, belirteci girin; şirket adı, master şifre ve ilk yönetici
-  hesabını oluşturun. Belirteç bir kez kullanılır.
+  hesabını oluşturun. Belirteç bir kez kullanılır. HTTPS sertifikası ilk istekte alınır;
+  sayfa ilk açılışta birkaç saniye bekletebilir.
 
   Veriler            : $DIR/data   (gizli anahtar dahil; yedekleri sunucu dışında saklayın)
-  Yönetim            : sudo dosyapi-ctl yardim
-    sudo dosyapi-ctl durum        sudo dosyapi-ctl yedekle
-    sudo dosyapi-ctl guncelle     sudo dosyapi-ctl gunluk -f
+  Yönetim            : sudo dosyapi-ctl help
+    sudo dosyapi-ctl status       sudo dosyapi-ctl backup
+    sudo dosyapi-ctl update       sudo dosyapi-ctl logs -f
 DONE
