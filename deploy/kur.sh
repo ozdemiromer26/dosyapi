@@ -6,6 +6,8 @@
 # Seçenekler:
 #   --alan-adi <ad>        Sunucunun alan adı (DNS A/AAAA kaydı bu sunucuyu göstermeli). Verilmezse sorulur.
 #   --surum <x.y.z>        Belirli bir sürüm (varsayılan: en yeni).
+#   --kaynaktan            Hazır imajı indirmek yerine sunucuda kaynak koddan derler
+#                          (yayın imajı yokken; ~10-20 dk, en az 2 GB RAM ya da takas).
 #   --otomatik-guncelleme  Her gece yedek alıp en yeni sürüme geçer.
 #   --evet                 Soru sormadan devam eder (Docker kurulumu dahil).
 set -euo pipefail
@@ -16,14 +18,15 @@ IMAGE="${DOSYAPI_IMAGE:-ghcr.io/${REPO}}"
 DIR=/opt/dosyapi
 APP_UID=10001
 
-DOMAIN="" VERSION="" AUTO_UPDATE=0 YES=0
+DOMAIN="" VERSION="" AUTO_UPDATE=0 YES=0 SOURCE=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --alan-adi) DOMAIN="${2:-}"; shift 2 ;;
     --surum) VERSION="${2:-}"; shift 2 ;;
+    --kaynaktan) SOURCE=1; shift ;;
     --otomatik-guncelleme) AUTO_UPDATE=1; shift ;;
     --evet) YES=1; shift ;;
-    -h|--help) sed -n '2,12p' "$0" 2>/dev/null || true; exit 0 ;;
+    -h|--help) sed -n '2,14p' "$0" 2>/dev/null || true; exit 0 ;;
     *) echo "Bilinmeyen seçenek: $1" >&2; exit 1 ;;
   esac
 done
@@ -87,8 +90,18 @@ REF="main"; [ -n "$VERSION" ] && REF="v$VERSION"
 RAW="${DOSYAPI_RAW:-https://raw.githubusercontent.com/$REPO/$REF/deploy/docker}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
 install -d -m 0755 "$DIR"
+
+if [ "$SOURCE" = 1 ]; then
+  # Kaynak kod paketi indirilir; kurulum dosyaları da aynı sürümden alınır.
+  command -v tar >/dev/null || die "tar gerekli."
+  rm -rf "$DIR/kaynak"; install -d -m 0755 "$DIR/kaynak"
+  info "Kaynak kod indiriliyor ($REPO @ $REF)"
+  curl -fsSL "https://codeload.github.com/$REPO/tar.gz/$REF" | tar -xz -C "$DIR/kaynak" --strip-components=1
+  HERE="$DIR/kaynak/deploy"
+fi
+
 fetch() {
-  # Depodan çalıştırılıyorsa yerel dosya, değilse yayın deposundaki kopya kullanılır.
+  # Depodan (ya da indirilen kaynaktan) çalışılıyorsa yerel dosya, değilse depodaki kopya kullanılır.
   if [ -n "$HERE" ] && [ -f "$HERE/docker/$1" ]; then
     install -m "$3" "$HERE/docker/$1" "$2"
   else
@@ -99,13 +112,25 @@ fetch compose.yml "$DIR/compose.yml" 0644
 fetch Caddyfile "$DIR/Caddyfile" 0644
 fetch dosyapi-ctl /usr/local/bin/dosyapi-ctl 0755
 
+if [ "$SOURCE" = 1 ]; then
+  say "Kaynak koddan derleniyor (10-20 dakika sürebilir)"
+  IMAGE="dosyapi-yerel"
+  BUILT="$(DOSYAPI_DIR="$DIR" DOSYAPI_FRESH=0 /usr/local/bin/dosyapi-ctl derle "$REF" "$REPO")"
+  IMAGE_REF="$BUILT"
+else
+  IMAGE_REF="$IMAGE:${VERSION:-latest}"
+fi
+
 install -d -m 0700 -o "$APP_UID" -g "$APP_UID" "$DIR/data"
 install -d -m 0700 "$DIR/yedekler"
 umask 077
 cat > "$DIR/.env" <<ENV
 DOSYAPI_DOMAIN=$DOMAIN
+DOSYAPI_REPO=$REPO
 DOSYAPI_IMAGE=$IMAGE
-DOSYAPI_IMAGE_REF=$IMAGE:${VERSION:-latest}
+DOSYAPI_IMAGE_REF=$IMAGE_REF
+DOSYAPI_SOURCE=$SOURCE
+DOSYAPI_SOURCE_REF=$REF
 ENV
 umask 022
 
@@ -117,7 +142,12 @@ fi
 
 # 6) Başlat
 say "Başlatılıyor"
-docker compose --project-directory "$DIR" -f "$DIR/compose.yml" pull
+if [ "$SOURCE" = 1 ]; then
+  docker compose --project-directory "$DIR" -f "$DIR/compose.yml" pull caddy
+else
+  docker compose --project-directory "$DIR" -f "$DIR/compose.yml" pull \
+    || die "İmaj indirilemedi ($IMAGE_REF). Yayın imajı henüz yoksa kurulumu --kaynaktan ile tekrarlayın."
+fi
 docker compose --project-directory "$DIR" -f "$DIR/compose.yml" up -d
 
 ok=0

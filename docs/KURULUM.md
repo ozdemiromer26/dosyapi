@@ -19,7 +19,13 @@ Betik sırasıyla:
 
 Tarayıcıdan adresi açıp belirteci girin; şirket adı, master şifre ve ilk yönetici hesabını oluşturun.
 
-Seçenekler: `--surum 1.2.3` (belirli sürüm), `--otomatik-guncelleme` (her gece yedek alıp günceller), `--evet`.
+Seçenekler: `--surum 1.2.3` (belirli sürüm), `--otomatik-guncelleme` (her gece yedek alıp günceller), `--evet`,
+`--kaynaktan` (hazır imaj yerine sunucuda kaynak koddan derler; yayın imajı yokken kullanılır, 10-20 dakika sürer,
+bellek 3 GB'tan azsa derleme süresince geçici takas alanı açılır, Docker diskinde ~6 GB boş yer gerekir).
+Kaynak kurulumunda `dosyapi-ctl guncelle` de yeni sürümü sunucuda derler.
+
+Alan adınız yoksa denemek için IP'den türetilen bir ad kullanabilirsiniz: sunucu IP'si `203.0.113.5` ise
+`--alan-adi 203-0-113-5.sslip.io`. Bu ad doğrudan sunucuya çözülür ve Let's Encrypt sertifikası alınabilir.
 
 ### Yönetim
 

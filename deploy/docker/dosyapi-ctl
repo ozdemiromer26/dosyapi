@@ -19,7 +19,7 @@ esac
 
 dc() { docker compose --project-directory "$DIR" -f "$DIR/compose.yml" "$@"; }
 app() { dc exec -T dosyapi dosyapi --config /data/config.toml "$@"; }
-env_get() { sed -n "s/^$1=//p" "$DIR/.env" | tail -n1; }
+env_get() { [ -f "$DIR/.env" ] || return 0; sed -n "s/^$1=//p" "$DIR/.env" | tail -n1; }
 env_set() {
   local key="$1" value="$2" tmp
   tmp="$(mktemp "$DIR/.env.XXXXXX")"
@@ -49,6 +49,57 @@ current_digest() {
   [ -n "$id" ] || return 0
   docker inspect -f '{{.Image}}' "$id" 2>/dev/null \
     | xargs -r docker image inspect -f '{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}' 2>/dev/null || true
+}
+
+# Derleme için bellek: Rust sürüm derlemesi ~2-3 GB ister. Bellek + takas yetmiyorsa
+# derleme süresince geçici takas dosyası açılır, bitince kaldırılır.
+TEMP_SWAP=""
+ensure_swap() {
+  local mem swap
+  mem="$(awk '/MemTotal/{print $2}' /proc/meminfo)"
+  swap="$(awk '/SwapTotal/{print $2}' /proc/meminfo)"
+  if [ $((mem + swap)) -lt 3500000 ] && [ ! -e /swapfile-dosyapi ]; then
+    echo "› Bellek az; derleme için geçici 3 GB takas alanı açılıyor…" >&2
+    fallocate -l 3G /swapfile-dosyapi 2>/dev/null || dd if=/dev/zero of=/swapfile-dosyapi bs=1M count=3072 status=none
+    chmod 600 /swapfile-dosyapi
+    mkswap /swapfile-dosyapi >/dev/null
+    swapon /swapfile-dosyapi
+    TEMP_SWAP=1
+  fi
+}
+drop_swap() {
+  if [ -n "$TEMP_SWAP" ]; then
+    swapoff /swapfile-dosyapi 2>/dev/null || true
+    rm -f /swapfile-dosyapi
+  fi
+}
+
+# Kaynak koddan imaj derler; yalnızca yeni imaj etiketini stdout'a yazar.
+# Kullanım: dosyapi-ctl derle [ref] [depo]   (ref: main ya da v1.2.3)
+cmd_build() {
+  local ref="${1:-main}" repo="${2:-}" src="$DIR/kaynak" tag avail
+  [ -n "$repo" ] || repo="$(env_get DOSYAPI_REPO 2>/dev/null || true)"
+  [ -n "$repo" ] || die "Depo bilinmiyor (DOSYAPI_REPO)."
+  [[ "$ref" =~ ^[A-Za-z0-9._/-]+$ ]] || die "Geçersiz kaynak dalı/etiketi: $ref"
+  avail="$(df -Pk /var/lib/docker 2>/dev/null | awk 'NR==2{print $4}' || echo 0)"
+  [ "${avail:-0}" -ge 6000000 ] || echo "Uyarı: Docker diskinde 6 GB'tan az boş yer var; derleme yarıda kalabilir." >&2
+  if [ ! -f "$src/Dockerfile" ] || [ "${DOSYAPI_FRESH:-1}" = 1 ]; then
+    rm -rf "$src"; install -d -m 0755 "$src"
+    echo "› Kaynak kod indiriliyor ($repo @ $ref)" >&2
+    curl -fsSL "https://codeload.github.com/$repo/tar.gz/$ref" | tar -xz -C "$src" --strip-components=1
+  fi
+  tag="dosyapi-yerel:$(date +%Y%m%d%H%M%S)"
+  ensure_swap
+  trap drop_swap EXIT
+  echo "› Derleniyor: $tag (10-20 dakika sürebilir)" >&2
+  if ! docker build -t "$tag" "$src" >&2; then
+    die "Derleme başarısız. Bellek yetmediyse sunucuya takas ekleyip tekrar deneyin."
+  fi
+  drop_swap; trap - EXIT
+  # Son 3 yerel imaj kalır (geri dönüş için), eskiler silinir.
+  docker images dosyapi-yerel --format '{{.Tag}}' | sort -r | tail -n +4 \
+    | sed 's/^/dosyapi-yerel:/' | xargs -r docker rmi >/dev/null 2>&1 || true
+  echo "$tag"
 }
 
 cmd_status() {
@@ -105,23 +156,32 @@ cmd_restore() {
 
 # Güncelleme: önce yedek, sonra yeni imaj. Sağlıklı açılmazsa önceki imaja dönülür.
 cmd_update() {
-  local target="${1:-}" image previous new_ref
+  local target="${1:-}" image previous new_ref ref
   image="$(env_get DOSYAPI_IMAGE)"
   [ -n "$image" ] || die ".env içinde DOSYAPI_IMAGE yok."
   if [ -n "$target" ]; then
     [[ "$target" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || die "Geçersiz sürüm: $target"
-    new_ref="$image:$target"
-  else
-    new_ref="$image:latest"
   fi
-  previous="$(current_digest)"
-  info "Güncelleme öncesi yedek alınıyor…"
-  cmd_backup
-  info "İmaj indiriliyor: $new_ref"
-  env_set DOSYAPI_IMAGE_REF "$new_ref"
-  if ! dc pull dosyapi; then
-    [ -n "$previous" ] && env_set DOSYAPI_IMAGE_REF "$previous"
-    die "İmaj indirilemedi; hiçbir şey değişmedi."
+  if [ "$(env_get DOSYAPI_SOURCE)" = "1" ]; then
+    # Kaynak kurulumu: önceki yerel imaj etiketi geri dönüş için saklanır.
+    previous="$(env_get DOSYAPI_IMAGE_REF)"
+    ref="$(env_get DOSYAPI_SOURCE_REF)"; ref="${ref:-main}"
+    [ -n "$target" ] && ref="v$target"
+    new_ref="$(cmd_build "$ref")" || die "Derleme başarısız; çalışan sürüm değişmedi."
+    info "Güncelleme öncesi yedek alınıyor…"
+    cmd_backup
+    env_set DOSYAPI_IMAGE_REF "$new_ref"
+  else
+    new_ref="$image:${target:-latest}"
+    previous="$(current_digest)"
+    info "Güncelleme öncesi yedek alınıyor…"
+    cmd_backup
+    info "İmaj indiriliyor: $new_ref"
+    env_set DOSYAPI_IMAGE_REF "$new_ref"
+    if ! dc pull dosyapi; then
+      [ -n "$previous" ] && env_set DOSYAPI_IMAGE_REF "$previous"
+      die "İmaj indirilemedi; hiçbir şey değişmedi."
+    fi
   fi
   dc up -d
   if wait_healthy 90; then
@@ -196,6 +256,7 @@ dosyapı yönetim aracı
   yedekle                   Tutarlı yedek al (birkaç saniyelik kesinti)
   geri-yukle <dosya>        Yedekten geri yükle
   guncelle [sürüm]          Yedek alıp en yeni (ya da belirtilen) sürüme geç; sorun olursa geri döner
+                            (kaynak kurulumunda sunucuda yeniden derler)
   otomatik-guncelleme ac|kapat
   yeniden-baslat            Uygulamayı yeniden başlat
   belirtec                  Yeni ilk kurulum belirteci üret
@@ -210,6 +271,7 @@ case "${1:-yardim}" in
   yedekle|backup) cmd_backup ;;
   geri-yukle|restore) shift; cmd_restore "$@" ;;
   guncelle|update) shift; cmd_update "$@" ;;
+  derle|build) shift; cmd_build "$@" ;;
   otomatik-guncelleme|auto-update) shift; cmd_auto_update "$@" ;;
   yeniden-baslat|restart) dc restart; wait_healthy 60 && info "Çalışıyor." ;;
   belirtec|token) cmd_token ;;
