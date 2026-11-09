@@ -124,6 +124,14 @@ export function buildDetail(c: Ctx): () => Vals {
         shareLabel: tx("Hisse") + ": " + o.name, shareOk: !!parseShare(o.share) || (((s.draft || {}).owners || []).length === 1 && !String(o.share || "").trim()),
         onShare: (e) => { const share = e.target.value; app.setState(st => ({ draft: { ...st.draft, owners: ((st.draft || {}).owners || []).map(x => x.id === o.id ? { ...x, share } : x) } })); },
         onRemove: () => app.setState(st => ({ draft: { ...st.draft, owners: ((st.draft || {}).owners || []).filter(x => x.id !== o.id) } })),
+        // Girilmiş bir arsa sahibini yerinde düzeltme; kimliği (id) korunur, değişiklik kayıtta fark olarak görünür.
+        onUpdate: (patch) => {
+          const name = String(patch.name || "").trim();
+          if (!name) { app.toast(tx("Arsa sahibi adı zorunlu.")); return false; }
+          const clean = { name, tc: String(patch.tc || "").trim(), phone: String(patch.phone || "").trim(), address: String(patch.address || "").trim(), share: String(patch.share || "").trim() };
+          app.setState(st => ({ draft: { ...st.draft, owners: ((st.draft || {}).owners || []).map(x => x.id === o.id ? { ...x, ...clean } : x) } }));
+          return true;
+        },
       })),
       shareTotal: (() => {
         const list = (s.draft || {}).owners || [];

@@ -426,6 +426,53 @@ pub struct Todo {
     pub done: bool,
 }
 
+/// İki kullanıcı arasındaki konuşma; `user_a < user_b` sıralıdır.
+#[derive(Clone, Debug)]
+pub struct Conversation {
+    pub id: Id,
+    pub user_a: Id,
+    pub user_b: Id,
+    pub created_at: Timestamp,
+    pub a_read_seq: i64,
+    pub b_read_seq: i64,
+}
+
+impl Conversation {
+    pub fn has(&self, user_id: &str) -> bool {
+        self.user_a == user_id || self.user_b == user_id
+    }
+    pub fn other(&self, user_id: &str) -> &str {
+        if self.user_a == user_id {
+            &self.user_b
+        } else {
+            &self.user_a
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Message {
+    pub id: Id,
+    pub seq: i64,
+    pub conversation_id: Id,
+    pub sender_id: Id,
+    pub body: String,
+    pub created_at: Timestamp,
+}
+
+/// Konuşma listesindeki satır: karşı taraf, son mesaj ve okunmamış sayısı.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversationView {
+    pub id: Id,
+    pub other_id: Id,
+    pub last_at: Timestamp,
+    pub last_body: String,
+    pub last_from_me: bool,
+    pub unread: i64,
+}
+
 /// Kullanıcının bir projeye düştüğü kişisel not. Yalnızca sahibi okur ve yazar.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]

@@ -16,6 +16,7 @@ use dosyapi_core::services::dns::DnsService;
 use dosyapi_core::services::files::FileService;
 use dosyapi_core::services::mail::MailService;
 use dosyapi_core::services::master::MasterService;
+use dosyapi_core::services::messages::MessageService;
 use dosyapi_core::services::projects::ProjectService;
 use dosyapi_core::services::records::RecordService;
 use dosyapi_core::services::roles::RoleService;
@@ -73,6 +74,7 @@ pub struct Services {
     pub approvals: ApprovalService,
     pub files: FileService,
     pub tasks: TaskService,
+    pub messages: MessageService,
     pub templates: TemplateService,
     pub bootstrap: BootstrapService,
     pub dns: DnsService,
@@ -300,6 +302,12 @@ pub async fn build(
             notes: db.clone(),
             clock: clock.clone(),
             audit: audit.clone(),
+        },
+        messages: MessageService {
+            messages: db.clone(),
+            users: db.clone(),
+            clock: clock.clone(),
+            limiter: limiter.clone(),
         },
         templates,
         bootstrap: BootstrapService {

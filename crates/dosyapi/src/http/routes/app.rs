@@ -5,13 +5,14 @@ use crate::http::error::ApiResult;
 use crate::http::extract::*;
 use axum::Json;
 use axum::Router;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::http::header::CONTENT_TYPE;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post, put};
 use dosyapi_core::model::*;
 use dosyapi_core::services::changes::Submitted;
+use dosyapi_core::services::messages::SendInput;
 use dosyapi_core::services::users::ProfileInput;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -63,6 +64,7 @@ async fn bootstrap(
     // Hakkında ekranı için: kurulu sürümün geliş tarihi ve geliştiren.
     value["installedAt"] = json!(state.services.updates.record_running_version().await?);
     value["developer"] = json!(env!("CARGO_PKG_AUTHORS"));
+    value["unreadMessages"] = json!(state.services.messages.unread(&auth.actor).await?);
     Ok(Json(value))
 }
 
@@ -320,6 +322,56 @@ async fn todo_delete(
         .delete_todo(&auth.actor, &id.to_string())
         .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn messages_list(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+) -> ApiResult<Json<Vec<ConversationView>>> {
+    Ok(Json(state.services.messages.list(&auth.actor).await?))
+}
+
+async fn messages_unread(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+) -> ApiResult<Json<Value>> {
+    let count = state.services.messages.unread(&auth.actor).await?;
+    Ok(Json(json!({ "unread": count })))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ThreadQuery {
+    before: Option<i64>,
+}
+
+async fn messages_thread(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Path(id): Path<Uuid>,
+    Query(q): Query<ThreadQuery>,
+) -> ApiResult<Json<Value>> {
+    let (conversation, list) = state
+        .services
+        .messages
+        .thread(&auth.actor, &id.to_string(), q.before)
+        .await?;
+    Ok(Json(json!({
+        "id": conversation.id,
+        "otherId": conversation.other(&auth.actor.user_id),
+        "messages": list,
+        "hasMore": list.len() as i64 >= dosyapi_core::services::messages::PAGE,
+    })))
+}
+
+async fn messages_send(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Body(input): Body<SendInput>,
+) -> ApiResult<Json<Message>> {
+    Ok(Json(
+        state.services.messages.send(&auth.actor, input).await?,
+    ))
 }
 
 #[derive(Deserialize)]
@@ -665,6 +717,9 @@ pub fn router() -> Router<AppState> {
         .route("/tasks", post(task_add))
         .route("/tasks/{id}/toggle", post(task_toggle))
         .route("/tasks/{id}", put(task_update).delete(task_delete))
+        .route("/messages", get(messages_list).post(messages_send))
+        .route("/messages/unread", get(messages_unread))
+        .route("/messages/{id}", get(messages_thread))
         .route("/todos", post(todo_add))
         .route("/todos/{id}/toggle", post(todo_toggle))
         .route("/todos/{id}", delete(todo_delete))

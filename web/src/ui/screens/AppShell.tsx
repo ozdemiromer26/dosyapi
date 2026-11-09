@@ -6,6 +6,7 @@ import { HomeScreen } from "./HomeScreen";
 import { ProjectsScreen } from "./ProjectsScreen";
 import { DetailScreen } from "./DetailScreen";
 import { TasksScreen } from "./TasksScreen";
+import { MessagesScreen } from "./MessagesScreen";
 import { RecordsScreen } from "./RecordsScreen";
 import { ApprovalsScreen } from "./ApprovalsScreen";
 import { ProfileScreen } from "./ProfileScreen";
@@ -192,6 +193,7 @@ export function AppShell({ v }: { v: Vals }) {
         {v.isDetail ? <DetailScreen v={v} /> : null}
 
         {v.isTasks ? <TasksScreen v={v} /> : null}
+        {v.isMessages ? <MessagesScreen v={v} /> : null}
 
         {v.isRecords ? <RecordsScreen v={v} /> : null}
 
@@ -208,8 +210,11 @@ export function AppShell({ v }: { v: Vals }) {
       {v.isMobile ? (<>
         <div style={css("position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--card);border-top:1px solid var(--line);display:flex;gap:2px;padding:4px 4px 8px")}>
           {(v.bottomNav || []).map((n: any, i88: number) => (<React.Fragment key={n?.id ?? n?.key ?? i88}>
-            <button onClick={n.onClick} style={css(n.botStyle)}>
-              {n.icon}
+            <button onClick={n.onClick} style={css(n.botStyle)} aria-label={n.hasBadge ? n.label + " (" + n.badgeText + ")" : undefined}>
+              <span style={css("position:relative;display:inline-flex")}>
+                {n.icon}
+                {n.hasBadge ? <span aria-hidden="true" style={css("position:absolute;top:-5px;right:-9px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--pri,#2a3180);color:#fff;font-size:10px;font-weight:800;line-height:16px;text-align:center;box-shadow:0 0 0 2px var(--card)")}>{n.badgeText}</span> : null}
+              </span>
               <span style={css("font-size:11px;font-weight:700;white-space:nowrap")}>{n.label}</span>
             </button>
           </React.Fragment>))}

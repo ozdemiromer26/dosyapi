@@ -24,7 +24,7 @@ function initialState() {
     gen: null, genBusy: "", tplDraft: null, tplMode: "edit", tplDirty: false, edPop: null, edInTable: false, edImg: false,
     tplSide: "vars", tplSample: "", varQ: "", zoom: { gen: "fit", tpl: "fit" }, zoomLbl: {}, varOpen: { genel: true, proje: true },
     tbCols: { muellifler: ["sira", "adSoyad", "meslek", "tc", "telefon"], arsaSahipleri: ["sira", "ad", "tc", "hisse", "imza"] },
-    noticeAccepted: false, privacyNotice: "", undo: null, updateInfo: null, backups: [], audit: [], auditOk: null, dns: null, dnsChecks: [], smtp: null, totpSetup: null, masterTotpSetup: null, recoveryCodes: null, busy: "",
+    noticeAccepted: false, privacyNotice: "", undo: null, updateInfo: null, backups: [], audit: [], auditOk: null, dns: null, dnsChecks: [], smtp: null, totpSetup: null, masterTotpSetup: null, recoveryCodes: null, unreadMessages: 0, busy: "",
   };
 }
 
@@ -174,6 +174,20 @@ export class AppCore extends React.Component<any, any> {
     await this.loadSession();
   }
 
+  /** Okunmamış mesaj sayısını yoklar (sekme görünürken, 25 sn'de bir). Anlık bağlantı yerine
+   *  yoklama: kendi sunucusunda tek süreçle çalışan kurulum için yeterli ve basit. */
+  startMessagePoll() {
+    if (this._msgPoll) return;
+    this._msgPoll = setInterval(() => { if (!document.hidden) this.refreshUnread(); }, 25000);
+  }
+  async refreshUnread() {
+    if (this.state.mode !== "app") return;
+    try {
+      const r = await this.api.get("/messages/unread");
+      if (r && r.unread !== this.state.unreadMessages) this.setState({ unreadMessages: r.unread });
+    } catch (e) { /* oturum düştüyse bir sonraki istek zaten girişe yönlendirir */ }
+  }
+
   async loadSession() {
     try {
       const data = await this.api.get("/bootstrap");
@@ -181,6 +195,7 @@ export class AppCore extends React.Component<any, any> {
       const target = this.deepLinkProject;
       this.deepLinkProject = null;
       this.setState({ ...mapBootstrap(data), mode: "app", ...(target ? { tab: "detail", projectId: target } : {}) });
+      this.startMessagePoll();
     } catch (e) {
       if (e.status === 401) this.setState({ mode: "auth", session: null });
       else this.setState({ mode: "auth", authError: tx(e.message) });

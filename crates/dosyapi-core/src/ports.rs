@@ -134,6 +134,27 @@ pub trait TodoRepo: Send + Sync {
     async fn delete(&self, id: &str) -> AppResult<()>;
 }
 
+/// Birebir mesajlaşma. Üyelik denetimi serviste yapılır; depo yalnızca saklar.
+#[async_trait]
+pub trait MessageRepo: Send + Sync {
+    async fn conversation(&self, id: &str) -> AppResult<Option<Conversation>>;
+    async fn conversation_between(&self, a: &str, b: &str) -> AppResult<Option<Conversation>>;
+    /// Aynı çift için eşzamanlı oluşturmada mevcut konuşmayı döndürür.
+    async fn create_conversation(&self, c: &Conversation) -> AppResult<Conversation>;
+    async fn list_for(&self, user_id: &str) -> AppResult<Vec<ConversationView>>;
+    async fn add_message(&self, m: &Message) -> AppResult<i64>;
+    /// `before` verilirse o sıradan önceki en fazla `limit` mesaj (eskiden yeniye sıralı).
+    async fn messages(
+        &self,
+        conversation_id: &str,
+        before: Option<i64>,
+        limit: i64,
+    ) -> AppResult<Vec<Message>>;
+    /// Okundu işaretini yalnızca ileri taşır.
+    async fn mark_read(&self, conversation_id: &str, user_id: &str, seq: i64) -> AppResult<()>;
+    async fn unread_total(&self, user_id: &str) -> AppResult<i64>;
+}
+
 /// Kişisel proje notları; anahtar her zaman (kullanıcı, proje) çiftidir.
 #[async_trait]
 pub trait NoteRepo: Send + Sync {

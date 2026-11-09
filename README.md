@@ -13,6 +13,7 @@ yazıldı, arayüz telefonda ve masaüstünde tarayıcıdan çalışır.
 - Sistem panelinde Hakkında: sürüm, son güncelleme tarihi, geliştiren
 - İki adımlı doğrulama: QR ile kurulum, tek kullanımlık kodlar, 10 kurtarma kodu
 - Tek komutla kurulum: Docker + otomatik HTTPS (`deploy/kur.sh`), yönetim için `dosyapi-ctl`
+- Kullanıcılar arası mesajlaşma: birebir konuşmalar, cevaplar, okunmamış sayısı; içerik diskte şifreli
 - Arsa sahipleri ve vekiller; hisse toplamının 1/1 olması denetlenir
 - Müellif ve müteahhit kayıtları; proje başına meslek bazlı müellif ataması
 - Rol ve kademe tabanlı yetki, alan bazlı onay kuyruğu, silmeyi geri alma

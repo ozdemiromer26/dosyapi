@@ -3,6 +3,50 @@ import React from "react";
 import { css } from "../css";
 import type { Vals } from "../../vm/types";
 
+const OW_FIELD = "min-width:0;height:38px;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:0 10px;font-size:13px;font-weight:600;color:var(--ink)";
+
+/** Arsa sahibi satırı: hisse yerinde, diğer bilgiler kalemle açılan formda düzeltilir. */
+function OwnerRow({ o, v }: { o: any; v: Vals }) {
+  const [edit, setEdit] = React.useState(false);
+  const [f, setF] = React.useState({ name: "", tc: "", phone: "", address: "", share: "" });
+  const open = () => { setF({ name: o.name || "", tc: o.tc || "", phone: o.phone || "", address: o.address || "", share: o.share || "" }); setEdit(true); };
+  const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
+  const done = () => { if (o.onUpdate(f)) setEdit(false); };
+  if (edit) {
+    return (
+      <div onKeyDown={(e) => {
+          // Pencerenin Enter ile kaydetme ve Esc ile kapanma davranışına ulaşmasın.
+          if (e.key === "Escape") { e.stopPropagation(); setEdit(false); }
+          if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); done(); }
+        }}
+        style={css("display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;background:var(--soft2);border:1px solid var(--tintline);border-radius:9px;padding:10px")}>
+        <input value={f.name} onChange={set("name")} autoFocus aria-label={v.T.adSoyadUnvan} placeholder={v.T.adSoyadUnvan} style={css(OW_FIELD + ";grid-column:1 / -1")} />
+        <input value={f.tc} onChange={set("tc")} aria-label={v.T.tcVergiNo} placeholder={v.T.tcVergiNo} style={css(OW_FIELD)} />
+        <input value={f.phone} onChange={set("phone")} aria-label={v.T.telefonPh} placeholder={v.T.telefonPh} style={css(OW_FIELD)} />
+        <input value={f.share} onChange={set("share")} aria-label={v.T.hissePh} placeholder={v.T.hissePh} style={css(OW_FIELD)} />
+        <input value={f.address} onChange={set("address")} aria-label={v.T.adresPh} placeholder={v.T.adresPh} style={css(OW_FIELD)} />
+        <div style={css("grid-column:1 / -1;display:flex;gap:8px;justify-content:flex-end")}>
+          <button onClick={() => setEdit(false)} style={css("height:34px;padding:0 13px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer")}>{v.T.vazgec}</button>
+          <button onClick={done} style={css("height:34px;padding:0 15px;border:none;background:var(--pri,#2a3180);color:#fff;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer")}>{v.T.tamam}</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div style={css("display:flex;align-items:center;gap:8px;background:var(--soft2);border-radius:9px;padding:8px 10px")}>
+      <div style={css("flex:1;min-width:0")}>
+        <div style={st.title13}>{o.name}</div>
+        <div style={css("font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{o.meta}</div>
+      </div>
+      <input value={o.share} onChange={o.onShare} aria-label={o.shareLabel} placeholder="1/2" inputMode="numeric" style={css("width:84px;flex:none;height:32px;border:1px solid " + (o.shareOk ? "var(--line)" : "var(--errline)") + ";background:var(--card);border-radius:7px;padding:0 8px;font-size:13px;font-weight:700;text-align:center;color:var(--ink)")} />
+      <button onClick={open} aria-label={v.T.duzenle} title={v.T.duzenle} style={css("width:30px;height:30px;flex:none;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center")}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></svg>
+      </button>
+      <button onClick={o.onRemove} aria-label={v.T.sil} title={v.T.sil} style={css("width:30px;height:30px;flex:none;border:1px solid var(--errline);background:var(--err);color:var(--errtext);border-radius:7px;font-size:12px;font-weight:700;cursor:pointer")}>✕</button>
+    </div>
+  );
+}
+
 export function Sheets({ v }: { v: Vals }) {
   return (
     <>
@@ -45,16 +89,7 @@ export function Sheets({ v }: { v: Vals }) {
                   <div style={css("flex:1;font-size:11px;font-weight:800;letter-spacing:.5px;color:var(--muted)")}>{v.T.arsaSahipleriUp}</div>
                   {v.shareTotal.show ? <span role="status" style={css(v.shareTotal.style)}>{v.shareTotal.text}</span> : null}
                 </div>
-                {(v.draftOwners || []).map((o: any, i91: number) => (<React.Fragment key={o?.id ?? o?.key ?? i91}>
-                  <div style={css("display:flex;align-items:center;gap:9px;background:var(--soft2);border-radius:9px;padding:8px 10px")}>
-                    <div style={css("flex:1;min-width:0")}>
-                      <div style={st.title13}>{o.name}</div>
-                      <div style={css("font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{o.meta}</div>
-                    </div>
-                    <input value={o.share} onChange={o.onShare} aria-label={o.shareLabel} placeholder="1/2" inputMode="numeric" style={css("width:84px;flex:none;height:32px;border:1px solid " + (o.shareOk ? "var(--line)" : "var(--errline)") + ";background:var(--card);border-radius:7px;padding:0 8px;font-size:13px;font-weight:700;text-align:center;color:var(--ink)")} />
-                    <button onClick={o.onRemove} aria-label={v.T.sil} style={css("width:30px;height:30px;flex:none;border:1px solid var(--errline);background:var(--err);color:var(--errtext);border-radius:7px;font-size:12px;font-weight:700;cursor:pointer")}>✕</button>
-                  </div>
-                </React.Fragment>))}
+                {(v.draftOwners || []).map((o: any) => <OwnerRow key={o.id} o={o} v={v} />)}
                 <div style={css("display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px")}>
                   <input name="owName" ref={v.refOwName} onChange={v.onField} placeholder={v.T.adSoyadUnvan} style={css("grid-column:1 / -1;min-width:0;height:40px;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:0 11px;font-size:13px;font-weight:600")} />
                   <input name="owTc" ref={v.refOwTc} onChange={v.onField} placeholder={v.T.tcVergiNo} style={st.fieldCompact} />

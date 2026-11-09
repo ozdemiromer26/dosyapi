@@ -23,6 +23,7 @@ Güvenlik açıklarını herkese açık kanaldan yazmayın; depo sahibine özel 
 | Zararlı dosya | Uzantı izin listesi ve içerik imzası denetimi; indirme her zaman ek olarak ve ikili türle sunulur. SVG kabul edilmez. Proje fotoğrafı yalnızca PNG/JPEG/WEBP olabilir, türü içerikten belirlenir; tarayıcıda yeniden kodlandığı için EXIF ve konum bilgisi sunucuya gitmez. |
 | Kişisel proje notu | Not yalnızca yazan kullanıcıya döner; anahtar her zaman oturumdaki kullanıcıdır, istemciden kullanıcı kimliği alınmaz. Gövde AES-256-GCM ile şifrelenir; şifreleme bağlamı kullanıcı ve projeyi içerdiği için satır başka bir kullanıcıya taşınırsa çözülemez. Proje ya da kullanıcı silinince notlar da silinir. |
 | İki adımlı doğrulama | TOTP (RFC 6238); gizli anahtar şifreli saklanır. Kabul edilen zaman adımı kaydedilir ve yalnızca ileri gider: aynı kod ikinci kez geçmez (eşzamanlı iki girişte de yalnızca biri). 10 tek kullanımlık kurtarma kodu verilir; yalnızca kullanıcıya bağlı SHA-256 özetleri tutulur, kullanılan kod tek sorguda silinir. Açıkken yeniden kurulum ve kodların yenilenmesi şifre ister. Deneme sayısı oran sınırlıdır. |
+| Mesajlaşma | Birebir konuşmayı yalnızca iki tarafı görür; üye olmayana konuşma "yok" (404) döner. Gövde AES-256-GCM ile, mesaj ve konuşma kimliğine bağlı bağlamla şifrelenir; yöneticiler ve sistem paneli içeriği okuyamaz. Gönderen her zaman oturumdaki kullanıcıdır. Mesaj 4000 karakterle, gönderim dakikada 30 ile sınırlı; arayüz içeriği düz metin olarak basar. |
 | Yol geçişi | Disk yolu yalnızca sunucunun ürettiği kimlikten oluşur; kullanıcı dosya adı diske yazılmaz. |
 | Host zehirlenmesi | Host başlığı doğrulanır; bağlantılar yapılandırılmış adresten üretilir. |
 | Güncelleme saldırısı | Ed25519 imzalı bildirim, SHA-256 bağlı paket, sürüm geri alma engeli, kanal bağlama. Uygulama süreci kendi ikilisine yazamaz; root güncelleyici imzayı kendisi doğrular ve paketi root'a ait klasöre kopyaladıktan sonra özetler. |
@@ -47,7 +48,7 @@ Güvenlik açıklarını herkese açık kanaldan yazmayın; depo sahibine özel 
 
 ```bash
 make test       # birim testleri
-make pentest    # 275 saldırı senaryosu (--timing ile 284)
+make pentest    # 298 saldırı senaryosu (--timing ile 307)
 python3 security/update_test.py --help   # güncelleme saldırıları
 make audit      # cargo audit + npm audit
 ```

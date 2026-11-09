@@ -27,7 +27,7 @@ export function buildShell(c: Ctx): () => Vals {
     const domainsTxt = domains.map(d => "@" + d).join(", ");
     const decidable = pendings.filter(p => p.canDecide).length;
     const navDefs: any[] = [
-      ["home", tx("Özet"), true], ["projects", tx("Projeler"), pm !== "none"], ["tasks", tx("Görevler"), true],
+      ["home", tx("Özet"), true], ["projects", tx("Projeler"), pm !== "none"], ["tasks", tx("Görevler"), true], ["messages", tx("Mesajlar"), true],
       ["records", tx("Kayıtlar"), rm !== "none"], ["approvals", tx("Onaylar"), true], ["profile", tx("Profil"), true],
       ["templates", tx("Belge Şablonları"), app.perm("templates")],
       ["company", tx("Şirket Ayarları"), app.perm("company")],
@@ -37,7 +37,8 @@ export function buildShell(c: Ctx): () => Vals {
     const botStyle = (on) => "flex:1;min-width:0;height:54px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;padding:0;color:" + (on ? "var(--brandink)" : "var(--muted)");
     const mkNav = (n: any): any => {
       const on = s.tab === n[0] || (n[0] === "projects" && s.tab === "detail");
-      const badgeTxt = n[0] === "approvals" && decidable ? String(decidable) : "";
+      const unread = s.unreadMessages || 0;
+      const badgeTxt = n[0] === "approvals" && decidable ? String(decidable) : n[0] === "messages" && unread ? String(unread) : "";
       return {
         id: n[0], label: n[1], icon: ICONS[n[0]](), hasBadge: !!badgeTxt, badgeText: badgeTxt,
         badgeStyle: "margin-left:auto;font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;background:var(--pri,#2a3180);color:#fff",
@@ -47,16 +48,19 @@ export function buildShell(c: Ctx): () => Vals {
     };
     const navItems = navDefs.filter(n => n[2]).map(mkNav);
     const navNoProf = navItems.filter(n => n.id !== "profile"), profOn = s.tab === "profile";
-    const bottomNav = navNoProf.slice(0, 3).concat(<any>[{
-      id: "more", label: tx("Daha fazla"), icon: ICONS.more(), hasBadge: decidable > 0, badgeText: String(decidable),
-      botStyle: botStyle(navNoProf.slice(3).some(n => n.id === s.tab)),
+    // Alt çubukta 4 sekme + Daha fazla + Profil; Mesajlar burada görünür kalsın diye 4.
+    const BOTTOM = 4;
+    const moreBadge = navNoProf.slice(BOTTOM).reduce((n, x) => n + (Number(x.badgeText) || 0), 0);
+    const bottomNav = navNoProf.slice(0, BOTTOM).concat(<any>[{
+      id: "more", label: tx("Daha fazla"), icon: ICONS.more(), hasBadge: moreBadge > 0, badgeText: String(moreBadge),
+      botStyle: botStyle(navNoProf.slice(BOTTOM).some(n => n.id === s.tab)),
       onClick: () => app.setState({ sheet: { type: "menu" }, notifOpen: false }),
     }, {
       id: "profile", label: tx("Profil"), botStyle: botStyle(profOn),
       icon: el("span", { style: { width: 24, height: 24, borderRadius: "50%", flex: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, background: profOn ? "var(--pri,#2a3180)" : "var(--soft3)", color: profOn ? "#fff" : "var(--brandink)" } }, me ? ini(me.name) : ""),
       onClick: () => app.setState({ tab: "profile", notifOpen: false, sheet: null, profileMenuOpen: false }),
     }]);
-    const menuItems = navNoProf.slice(3);
+    const menuItems = navNoProf.slice(BOTTOM);
 
     const goList = (filters) => () => app.setState({ tab: "projects", filters, notifOpen: false });
     // accent: "pri" dolu marka rengi; "alert" açık kırmızı zemin + kırmızı yazı.
@@ -72,7 +76,7 @@ export function buildShell(c: Ctx): () => Vals {
     const { allProjects, check, docPending, lvl, me, myTasks, pendings, s } = c; /*LATE*/
     return {
       companyName: s.company.name, companyDesc: s.company.desc, companyMonogram: ini(s.company.name),
-      screenTitle: { home: tx("Özet"), projects: tx("Projeler"), detail: tx("Proje detayı"), tasks: tx("Görevler ve yapılacaklar"), records: tx("Kayıtlar"), approvals: tx("Onay kuyruğu"), profile: tx("Profil"), company: tx("Şirket ayarları"), templates: tx("Belge şablonları"), about: tx("Hakkında") }[s.tab],
+      screenTitle: { home: tx("Özet"), projects: tx("Projeler"), detail: tx("Proje detayı"), tasks: tx("Görevler ve yapılacaklar"), messages: tx("Mesajlar"), records: tx("Kayıtlar"), approvals: tx("Onay kuyruğu"), profile: tx("Profil"), company: tx("Şirket ayarları"), templates: tx("Belge şablonları"), about: tx("Hakkında") }[s.tab],
       meName: me ? me.name : "", meEmail: me ? me.email : "", meInitials: me ? ini(me.name) : "",
       meFirstName: me ? me.name.split(" ")[0] : "",
       meRoleLabel: app.myRole() ? app.myRole().name : tx("Rolsüz"),
@@ -127,7 +131,20 @@ export function buildShell(c: Ctx): () => Vals {
       noNotif: decidable + myTasks.filter(t => !t.done).length + docPending.length === 0,
       isHome: s.tab === "home", isProjects: s.tab === "projects", isDetail: s.tab === "detail",
       isTasks: s.tab === "tasks", isRecords: s.tab === "records", isApprovals: s.tab === "approvals",
-      isProfile: s.tab === "profile", isCompany: s.tab === "company", isAbout: s.tab === "about",
+      isProfile: s.tab === "profile", isCompany: s.tab === "company", isAbout: s.tab === "about", isMessages: s.tab === "messages",
+      msg: {
+        meId: me && me.id,
+        wide: (c.contentW || 0) >= 720,
+        // Masaüstü dışında altta sabit gezinme çubuğu var; yükseklik ondan düşülür.
+        bottomBar: !isDesktop,
+        users: s.users.filter(u => u.status === "active" && u.id !== (me && me.id)).map(u => ({ id: u.id, name: u.name, role: (app.roleOf(u) || {}).name || "" })),
+        nameOf: (id) => (s.users.find(u => u.id === id) || {}).name || tx("Silinmiş kullanıcı"),
+        list: () => app.api.get("/messages"),
+        thread: (id, before) => app.api.get("/messages/" + id + (before ? "?before=" + before : "")),
+        send: (to, body) => app.api.post("/messages", { to, body }),
+        refreshUnread: () => app.refreshUnread(),
+        fail: (e) => app.fail(e),
+      },
       goHome: () => app.setState({ tab: "home" }), goProjects: () => app.setState({ tab: "projects" }),
       goTasks: () => app.setState({ tab: "tasks" }), goApprovals: () => app.setState({ tab: "approvals" }),
       goProfile: () => app.setState({ tab: "profile", profileMenuOpen: false }),

@@ -11,6 +11,7 @@ pub mod dns;
 pub mod files;
 pub mod mail;
 pub mod master;
+pub mod messages;
 pub mod projects;
 pub mod records;
 pub mod roles;

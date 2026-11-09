@@ -161,6 +161,30 @@ CREATE TABLE totp_recovery (
     PRIMARY KEY (user_id, code_hash)
 ) WITHOUT ROWID;
 
+-- Kullanıcılar arası birebir mesajlaşma. Her kullanıcı çifti için tek konuşma (user_a < user_b).
+-- Okundu işareti mesaj sırası (seq) ile tutulur; aynı saniyede gelen mesaj kaçmaz.
+CREATE TABLE conversations (
+    id         TEXT PRIMARY KEY,
+    user_a     TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    user_b     TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL,
+    a_read_seq INTEGER NOT NULL DEFAULT 0,
+    b_read_seq INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (user_a, user_b),
+    CHECK (user_a < user_b)
+);
+
+-- Mesaj gövdesi alan düzeyinde şifreli; yöneticiler ve sistem paneli içeriği göremez.
+CREATE TABLE messages (
+    seq             INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              TEXT NOT NULL UNIQUE,
+    conversation_id TEXT NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
+    sender_id       TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    body_enc        BLOB NOT NULL,
+    created_at      INTEGER NOT NULL
+);
+CREATE INDEX messages_by_conversation ON messages (conversation_id, seq);
+
 -- Kişisel proje notu: yalnızca yazan kullanıcı görür; gövde alan düzeyinde şifreli.
 CREATE TABLE project_notes (
     user_id    TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,

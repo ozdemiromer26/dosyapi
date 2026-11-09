@@ -4,6 +4,7 @@
 
 mod audit;
 mod identity;
+mod messages;
 mod records;
 mod workflow;
 
