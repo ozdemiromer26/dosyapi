@@ -1,0 +1,4 @@
+# `rsa`, kullanılmayan sqlx-mysql sürücüsü yüzünden Cargo.lock içinde görünür ama derlenmez
+# (`cargo tree -i rsa` boş döner). MySQL desteği eklenirse bu istisna kaldırılmalıdır.
+[advisories]
+ignore = ["RUSTSEC-2023-0071"]

@@ -1,0 +1,5 @@
+.hv0:hover{background:var(--soft2) !important}
+.hv1:hover{border-color:var(--tintline) !important}
+.hv2:hover{background:var(--soft3) !important}
+.hv3:hover{background:var(--tint) !important}
+[data-stuck],[data-stuck]>div:first-child{border-radius:0 !important}

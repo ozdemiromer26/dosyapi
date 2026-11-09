@@ -1,0 +1,9 @@
+[Unit]
+Description=dosyapi guncelleme isteklerini izler
+
+[Path]
+PathChanged=/var/lib/dosyapi/update/request.json
+Unit=dosyapi-updater.service
+
+[Install]
+WantedBy=multi-user.target

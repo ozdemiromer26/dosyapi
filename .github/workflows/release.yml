@@ -1,0 +1,60 @@
+# `v1.2.3` etiketi atıldığında Linux paketlerini derler, bildirimi imzalar ve yayınlar.
+# Gerekli ayarlar:
+#   vars.DOSYAPI_RELEASE_PUBKEYS   açık anahtar(lar)
+#   vars.DOSYAPI_UPDATE_URL        bildirimlerin yayınlandığı adres
+#   secrets.DOSYAPI_SIGNING_KEY    gizli imzalama anahtarı (hex)
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
+    env:
+      DOSYAPI_RELEASE_PUBKEYS: ${{ vars.DOSYAPI_RELEASE_PUBKEYS }}
+      DOSYAPI_UPDATE_URL: ${{ vars.DOSYAPI_UPDATE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: make build
+      - run: cp target/release/dosyapi "dosyapi-${GITHUB_REF_NAME#v}-linux-${{ matrix.arch }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dosyapi-${{ matrix.arch }}
+          path: dosyapi-*-linux-*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+      - name: Bildirimi üret ve imzala
+        env:
+          SIGNING_KEY: ${{ secrets.DOSYAPI_SIGNING_KEY }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          chmod +x dist/*
+          python3 scripts/make-manifest.py --version "$VERSION" --channel stable \
+            --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}" dist/dosyapi-*
+          umask 077; printf '%s' "$SIGNING_KEY" > signing.key
+          "./dist/dosyapi-${VERSION}-linux-x86_64" release-sign --key signing.key --manifest manifest.json
+          rm -f signing.key
+      - run: gh release create "$GITHUB_REF_NAME" dist/dosyapi-* manifest.json manifest.json.sig --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -1,0 +1,13 @@
+[Unit]
+Description=dosyapi yetkili guncelleyici
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Yalnızca imzası gömülü anahtarla doğrulanan paketi kurar.
+ExecStart=/opt/dosyapi/bin/dosyapi --config /etc/dosyapi/config.toml updater-apply
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/dosyapi/bin /var/lib/dosyapi/update /var/lib/dosyapi/update-status

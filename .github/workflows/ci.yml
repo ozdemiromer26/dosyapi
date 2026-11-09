@@ -1,0 +1,20 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: cd web && npm ci && npm run build && npm audit --omit=dev
+      - run: rustup component add clippy
+      - run: cargo test --workspace --locked
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo install cargo-audit --locked && cargo audit
+      - run: cargo build -p dosyapi --locked
+      - run: python3 security/pentest.py --bin target/debug/dosyapi

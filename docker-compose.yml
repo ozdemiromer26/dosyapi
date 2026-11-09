@@ -1,0 +1,22 @@
+# Kullanım: DOSYAPI_PUBLIC_URL=https://dosya.sirket.com docker compose up -d
+# Kurulum belirteci: docker compose logs dosyapi
+services:
+  dosyapi:
+    build: .
+    restart: unless-stopped
+    environment:
+      DOSYAPI_PUBLIC_URL: ${DOSYAPI_PUBLIC_URL:?}
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - dosyapi-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  dosyapi-data:

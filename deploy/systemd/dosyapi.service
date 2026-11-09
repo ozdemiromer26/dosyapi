@@ -1,0 +1,45 @@
+[Unit]
+Description=dosyapi insaat dosya yonetimi
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=dosyapi
+Group=dosyapi
+ExecStart=/opt/dosyapi/bin/dosyapi --config /etc/dosyapi/config.toml serve
+Restart=always
+RestartSec=3
+Environment=RUST_LOG=info
+
+# Sertleştirme: süreç yalnızca kendi veri klasörüne yazabilir.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RemoveIPC=true
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+UMask=0077
+ReadWritePaths=/var/lib/dosyapi
+ReadOnlyPaths=/etc/dosyapi /var/lib/dosyapi/update-status
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

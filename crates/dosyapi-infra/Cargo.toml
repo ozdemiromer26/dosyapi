@@ -1,0 +1,37 @@
+[package]
+name = "dosyapi-infra"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aes-gcm = "0.11.1"
+ammonia = "4.2.4"
+argon2 = "0.6.0"
+async-trait = "0.1.92"
+base64 = "0.23.1"
+dosyapi-core = { version = "0.1.0", path = "../dosyapi-core" }
+ed25519-dalek = "3.0.0"
+hex = "0.4.3"
+hkdf = "0.13.0"
+hmac = "0.13.0"
+lettre = { version = "0.11.23", default-features = false, features = ["smtp-transport", "tokio1-rustls", "builder", "hostname", "ring", "rustls-native-certs"] }
+qrcode = "0.14.1"
+rand = "0.10.3"
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "json", "stream", "query"] }
+semver = "1.0.28"
+serde = "1.0.229"
+serde_json = "1.0.154"
+sha2 = "0.11.0"
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros"] }
+subtle = "2.6.1"
+thiserror = "2.0.21"
+time = "0.3.45"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "fs", "io-util", "sync", "time", "macros"] }
+totp-rs = { version = "5.7.2", features = ["otpauth"] }
+tracing = "0.1.44"
+uuid = "1.26.1"
+zeroize = "1.9.1"
+
+[lints]
+workspace = true

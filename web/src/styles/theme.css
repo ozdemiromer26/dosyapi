@@ -1,0 +1,13 @@
+:root{--logo-a:#0E1B3D;--logo-b:#1E4FD8;--mono:'IBM Plex Mono',ui-monospace,monospace;--bg:#ececed;--card:#fcfcfc;--soft:#f9f9f9;--soft2:#f4f4f5;--soft3:#efefef;--line:#d8d8d8;--line2:#ebebeb;--line3:#f0f0f0;--ink:#202020;--muted:#646464;--faint:#737373;--tint:#e9eefb;--tintline:#c3cdf0;--ok:#e6f4ea;--okline:#b7dfc3;--oktext:#1b6b3a;--okdot:#2a9d55;--err:#fdecea;--errline:#f3bcb0;--errtext:#a8341a;--warn:#fff4e0;--warntext:#8a5a00;--brandink:var(--pri,#2a3180);--mbrandink:#163CA8;--mbg:#EEF1F6;--mcard:#FFFFFF;--mcard2:#F5F7FB;--mline:#DDE3EF;--mline2:#D5DCEB;--minput:#FFFFFF;--mbtn:#E9EDF4;--mtext:#1C2A4D;--mmuted:#5A6680;--mink:#0E1B3D;--mchip:#E3E8F2;--mchiptext:#3A4766;--merr:#FDECEA;--merrline:#F3BCB0;--merrtext:#A8341A;--mwarn:#FFF4E0;--mwarntext:#8A5A00}
+[data-theme]{--brandink:var(--pri,#2a3180);--tint:color-mix(in oklab,var(--pri,#2a3180) 10%,#ffffff);--tintline:color-mix(in oklab,var(--pri,#2a3180) 28%,#ffffff)}
+[data-theme="dark"]{--tint:color-mix(in oklab,var(--pri,#2a3180) 24%,#1a1a1f);--tintline:color-mix(in oklab,var(--pri,#2a3180) 45%,#1a1a1f)}
+body[data-theme="dark"],[data-theme="dark"]{--logo-a:#FFFFFF;--logo-b:#FFFFFF;--bg:#101014;--card:#1a1a1f;--soft:#202027;--soft2:#22222a;--soft3:#26262e;--line:#33333d;--line2:#2c2c34;--line3:#2c2c34;--ink:#f2f2f5;--muted:#a4a4b0;--faint:#8a8a95;--ok:#16301f;--okline:#2b5c3a;--oktext:#8fd6a6;--okdot:#4bbd72;--err:#3a1a16;--errline:#6b2a20;--errtext:#ffb4a2;--warn:#3b2f10;--warntext:#ffd580;--brandink:color-mix(in oklab,var(--pri,#2a3180) 32%,#ffffff);--mbrandink:#9DB0F0;--mbg:#0A1226;--mcard:#111C36;--mcard2:#0E1830;--mline:#24335A;--mline2:#2E3F69;--minput:#0D172E;--mbtn:#172443;--mtext:#E3E9F5;--mmuted:#93A0BC;--mink:#FFFFFF;--mchip:#1B2A4C;--mchiptext:#C3CDE2;--merr:#2A1512;--merrline:#6B2A20;--merrtext:#FFB4A2;--mwarn:#3B2F10;--mwarntext:#FFD580}
+body{margin:0;background:var(--bg);font-family:'IBM Plex Sans',ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:var(--ink)}
+button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--pri,#1E4FD8);outline-offset:2px}
+*{box-sizing:border-box}
+input,select,textarea,button{font-family:inherit;color:var(--ink)}
+option{background:var(--card);color:var(--ink)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--pri,#2a3180);outline-offset:0}
+a{color:var(--brandink);text-decoration:none}a:hover{color:var(--acc,#1d72b8)}
+@keyframes popIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes sheetIn{from{opacity:0;transform:translateY(24px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}

@@ -1,0 +1,3 @@
+Bu klasördeki yazı tipleri Tinos, Arimo ve Cousine'in (Steve Matteson, Google) Latin alt kümeleridir.
+Apache License 2.0 ile lisanslıdır: https://www.apache.org/licenses/LICENSE-2.0
+PDF çıktısında Times New Roman, Arial ve Courier New ile aynı harf genişliklerini sağlamak için kullanılır.

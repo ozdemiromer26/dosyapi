@@ -1,0 +1,43 @@
+[package]
+name = "dosyapi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow = "1.0.104"
+async-trait = "0.1.92"
+axum = { version = "0.8.9", features = ["multipart"] }
+axum-server = "0.8"
+base64 = "0.23.1"
+clap = { version = "4.6.7", features = ["derive", "env"] }
+dosyapi-core = { version = "0.1.0", path = "../dosyapi-core" }
+dosyapi-infra = { version = "0.1.0", path = "../dosyapi-infra" }
+ed25519-dalek = "3.0.0"
+futures-util = "0.3.34"
+hex = "0.4.3"
+http-body-util = "0.1.5"
+hyper = "1.12.0"
+hyper-util = "0.1.21"
+mime_guess = "2.0.5"
+percent-encoding = "2.3.2"
+rand = "0.10.3"
+rust-embed = "8.13.0"
+rustls-acme = { version = "0.15.4", default-features = false, features = ["ring", "axum", "tokio", "tls12", "webpki-roots"] }
+semver = "1.0.28"
+serde = "1.0.229"
+serde_json = "1.0.154"
+sha2 = "0.11.0"
+time = "0.3.45"
+tokio = { version = "1.54.1", features = ["full"] }
+tokio-util = { version = "0.7.20", features = ["io"] }
+toml = "1.2.1"
+tower = "0.5.3"
+tower-http = { version = "0.7.1", features = ["timeout"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+uuid = "1.26.1"
+
+[lints]
+workspace = true

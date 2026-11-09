@@ -1,0 +1,10 @@
+{
+  "name": "dosyapı",
+  "short_name": "dosyapı",
+  "description": "Şantiyenin dosyası cebinde.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#0E1B3D",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

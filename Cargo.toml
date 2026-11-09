@@ -1,0 +1,24 @@
+[workspace]
+resolver = "3"
+members = ["crates/dosyapi-core", "crates/dosyapi-infra", "crates/dosyapi"]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Ömer Özdemir"]
+edition = "2024"
+rust-version = "1.95"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+dbg_macro = "deny"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+overflow-checks = true
