@@ -35,12 +35,11 @@ HELP
 DOMAIN="" VERSION="" AUTO_UPDATE=0 YES=0 SOURCE=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    # Türkçe eski adlar uyumluluk için kabul edilir.
-    --domain|--alan-adi) DOMAIN="${2:-}"; shift 2 ;;
-    --version|--surum) VERSION="${2:-}"; shift 2 ;;
-    --from-source|--kaynaktan) SOURCE=1; shift ;;
-    --auto-update|--otomatik-guncelleme) AUTO_UPDATE=1; shift ;;
-    --yes|--evet) YES=1; shift ;;
+    --domain) DOMAIN="${2:-}"; shift 2 ;;
+    --version) VERSION="${2:-}"; shift 2 ;;
+    --from-source) SOURCE=1; shift ;;
+    --auto-update) AUTO_UPDATE=1; shift ;;
+    --yes) YES=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Bilinmeyen seçenek: $1 (yardım: --help)" >&2; exit 1 ;;
   esac

@@ -90,7 +90,7 @@ export function buildShell(c: Ctx): () => Vals {
       isDesktop, isMobile: !isDesktop,
       T: Object.keys(TPL).reduce((o, k) => (o[k] = tx(TPL[k]), o), {}),
       lang: s.lang, langLabel: s.lang === "en" ? "EN" : "TR",
-      toggleLang: () => { const n = app.state.lang === "en" ? "tr" : "en"; try { window.localStorage.setItem("iys.lang", n); } catch (e) {} app.setState({ lang: n }); },
+      toggleLang: () => app.setState({ lang: app.state.lang === "en" ? "tr" : "en" }),
       langBtnStyle: "height:36px;min-width:40px;padding:0 10px;flex:none;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:12px;font-weight:800;letter-spacing:.6px;cursor:pointer",
       langBtnStyleM: "height:36px;min-width:40px;padding:0 10px;flex:none;border-radius:9px;border:1px solid var(--mline2);background:var(--mbtn);color:var(--mtext);font-size:12px;font-weight:800;letter-spacing:.6px;cursor:pointer",
       themeIcon: s.theme === "dark" ? SUN() : MOON(),

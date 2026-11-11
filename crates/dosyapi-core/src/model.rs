@@ -801,10 +801,9 @@ pub struct Company {
     pub has_logo: bool,
 }
 
-/// Şirketin ana rengi. Saklanan ayar olduğu için bilinmeyen alanlar yok sayılır
-/// (eski kurulumlarda kalmış `acc` vurgu rengi okumayı bozmasın).
+/// Şirketin ana rengi.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Palette {
     pub pri: String,
 }
@@ -844,21 +843,4 @@ pub struct AuditRecord {
     pub ip: String,
     pub detail: String,
     pub hash: String,
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used)]
-mod palette_tests {
-    use super::Palette;
-
-    #[test]
-    fn reads_palette_saved_with_removed_accent_colour() {
-        // Vurgu rengi kaldırıldı; eski kurulumların kayıtlı ayarı yine okunmalı.
-        let old: Palette = serde_json::from_str(r##"{"pri":"#a20b0b","acc":"#163CA8"}"##).unwrap();
-        assert_eq!(old.pri, "#a20b0b");
-        assert_eq!(
-            serde_json::to_string(&old).unwrap(),
-            r##"{"pri":"#a20b0b"}"##
-        );
-    }
 }

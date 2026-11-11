@@ -73,9 +73,7 @@ export class EditorController extends AppCore {
   liftChipStyle(n) {
     const st = n.style, own = {};
     if (st.color && st.color !== "inherit" && st.color.replace(/\s/g, "") !== "rgb(42,49,128)") own.color = st.color;
-    // Eski sabit çip stili (.9em, 600, IBM Plex) biçim sayılmaz; çip artık çevresini izler.
-    const legacy = { fontSize: /^0?\.9em$/, fontWeight: /^600$/ };
-    ["fontSize", "fontFamily", "fontWeight", "fontStyle"].forEach(k => { const x = st[k]; if (x && x !== "inherit" && x !== "initial" && !(legacy[k] && legacy[k].test(x)) && !/IBM Plex/i.test(x)) own[k] = x; });
+    ["fontSize", "fontFamily", "fontWeight", "fontStyle"].forEach(k => { const x = st[k]; if (x && x !== "inherit" && x !== "initial") own[k] = x; });
     if (!Object.keys(own).length) return;
     const w = document.createElement("span"); Object.assign(w.style, own);
     n.parentNode.insertBefore(w, n); w.appendChild(n);

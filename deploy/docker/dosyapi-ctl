@@ -231,7 +231,7 @@ cmd_token() {
 
 cmd_auto_update() {
   case "${1:-}" in
-    on|ac)
+    on)
       cat > /etc/systemd/system/dosyapi-update.service <<UNIT
 [Unit]
 Description=dosyapı otomatik güncelleme
@@ -253,7 +253,7 @@ UNIT
       systemctl daemon-reload
       systemctl enable --now dosyapi-update.timer
       info "Otomatik güncelleme açık: her gece 04:00 civarı (öncesinde yedek alınır)." ;;
-    off|kapat)
+    off)
       systemctl disable --now dosyapi-update.timer 2>/dev/null || true
       rm -f /etc/systemd/system/dosyapi-update.service /etc/systemd/system/dosyapi-update.timer
       systemctl daemon-reload
@@ -291,27 +291,26 @@ dosyapı yönetim aracı — kullanım: sudo dosyapi-ctl <command>
 HELP
 }
 
-# Türkçe eski adlar uyumluluk için kabul edilir.
 case "${1:-help}" in
-  status|durum) cmd_status ;;
-  logs|gunluk) shift; dc logs --tail 200 "$@" dosyapi ;;
-  start|baslat) cmd_start ;;
-  restart|yeniden-baslat)
+  status) cmd_status ;;
+  logs) shift; dc logs --tail 200 "$@" dosyapi ;;
+  start) cmd_start ;;
+  restart)
     if running; then
       dc restart
       if wait_healthy 90; then info "Çalışıyor."; else die "Yanıt yok; günlükler: sudo dosyapi-ctl logs"; fi
     else cmd_start; fi ;;
-  backup|yedekle) cmd_backup ;;
-  restore|geri-yukle) shift; cmd_restore "$@" ;;
-  update|guncelle) shift; cmd_update "$@" ;;
-  build|derle) shift; cmd_build "$@" ;;
-  auto-update|otomatik-guncelleme) shift; cmd_auto_update "$@" ;;
-  token|belirtec) cmd_token ;;
+  backup) cmd_backup ;;
+  restore) shift; cmd_restore "$@" ;;
+  update) shift; cmd_update "$@" ;;
+  build) shift; cmd_build "$@" ;;
+  auto-update) shift; cmd_auto_update "$@" ;;
+  token) cmd_token ;;
   # Yeni şifreyi terminalden sorar; bu yüzden etkileşimli (-T olmadan) çalışır.
-  master-reset|master-sifirla)
+  master-reset)
     running || die "Uygulama çalışmıyor. Önce başlatın: sudo dosyapi-ctl start"
     dc exec dosyapi dosyapi --config /data/config.toml master-reset ;;
-  uninstall|kaldir) cmd_uninstall ;;
-  help|-h|--help|yardim) usage ;;
+  uninstall) cmd_uninstall ;;
+  help|-h|--help) usage ;;
   *) echo "Bilinmeyen komut: $1" >&2; echo >&2; usage >&2; exit 1 ;;
 esac
