@@ -8,13 +8,16 @@ export function buildCompany(c: Ctx): () => Vals {
   const app = c.app;
   /*TOP*/
 
+  // Belge tipi seçenek düğmesi (Zorunlu/Seçmeli, Tek/Çoklu dosya): açıkken dolu ana renk.
+  const optBtn = (on: boolean) => "height:30px;padding:0 10px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex:none;" + (on ? "background:var(--pri,#2a3180);color:#fff;border:1px solid var(--pri,#2a3180)" : "background:var(--card);color:var(--muted);border:1px solid var(--line)");
+
   return () => {
     const { s } = c; /*LATE*/
     return {
       docTypes: s.docTypes.map(d => {
         const save = (patch) => app.act(() => app.api.put("/doc-types/" + d.id, { name: d.name, required: d.required, accept: d.accept, multi: d.multi, ...patch }));
         return {
-          ...d, reqLabel: d.required ? tx("Zorunlu") : tx("Seçmeli"),
+          ...d, reqLabel: d.required ? tx("Zorunlu") : tx("Seçmeli"), reqBtnStyle: optBtn(!!d.required), multiBtnStyle: optBtn(!!d.multi),
           onToggleReq: () => save({ required: !d.required }),
           onDelete: () => app.act(() => app.api.del("/doc-types/" + d.id)),
           accept: d.accept || "all",
