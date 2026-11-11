@@ -1,5 +1,6 @@
 import { st } from "../styles";
 import React from "react";
+import { css } from "../css";
 import { Btn, Card, Field, Row, Select } from "../parts";
 import type { Vals } from "../../vm/types";
 
@@ -23,9 +24,14 @@ export function MasterMail({ v }: { v: Vals }) {
       </div>
       <Row>
         <Btn kind="primary" onClick={v.smtpSave}>{T.kaydet}</Btn>
-        <Field label={T.testAlicisi} name="mhTest" type="email" onChange={v.onField} />
-        <Btn onClick={v.smtpTest}>{T.testGonder}</Btn>
       </Row>
+      {/* Test gönderimi kaydetmeden ayrı bir satırda. */}
+      <div style={css("border-top:1px dashed var(--mline);padding-top:13px")}>
+        <Row>
+          <Field label={T.testAlicisi} name="mhTest" type="email" onChange={v.onField} />
+          <Btn onClick={v.smtpTest}>{T.testGonder}</Btn>
+        </Row>
+      </div>
     </Card>
   );
 }

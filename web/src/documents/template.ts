@@ -14,6 +14,8 @@ export const VAR_GROUPS = [
 ];
 export const LISTS = {
   muellifler: { label: "Müellifler", ctx: ["project", "authors"], fields: [["sira", "Sıra"], ["adSoyad", "Ad Soyad"], ["meslek", "Meslek"], ["tc", "TC No"], ["telefon", "Telefon"], ["sirket", "Büro / şirket"], ["sicil", "Oda sicil no"], ["adres", "Adres"]] },
+  // Kayıtlar ekranında seçilen müteahhitler (tek müteahhitte de bir satır).
+  muteahhitler: { label: "Müteahhitler", ctx: ["contractor"], fields: [["sira", "Sıra"], ["unvan", "Firma unvanı"], ["yetkili", "Yetkili"], ["yetkiNo", "Yetki belge no"], ["sinif", "Sınıfı"], ["adres", "Adres"]] },
   arsaSahipleri: { label: "Arsa sahipleri", ctx: ["project"], fields: [["sira", "Sıra"], ["ad", "Ad Soyad"], ["tc", "TC No"], ["telefon", "Telefon"], ["adres", "Adres"], ["hisse", "Hisse"], ["imza", "İmza alanı"]] },
 };
 export const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -24,7 +26,7 @@ export const varLabel = (key) => {
   if (!it) return key;
   return G.short ? tx(G.short) + " · " + tx(it[1]) : tx(it[1]);
 };
-export const CHIP_CSS = "background:#e9eefb;color:#2a3180;border:1px solid #c3cdf0;border-radius:4px;padding:0 4px;font-size:.9em;font-weight:600;box-decoration-break:clone;-webkit-box-decoration-break:clone;font-family:'IBM Plex Sans',system-ui,sans-serif";
+export const CHIP_CSS = "background:#e9eefb;color:#2a3180;border:1px solid #c3cdf0;border-radius:4px;padding:0 4px;box-decoration-break:clone;-webkit-box-decoration-break:clone;font:inherit";
 export const REP_DIV = "outline:1.5px dashed #8a96e0;outline-offset:3px;margin:8px 0";
 export const REP_TR = "background:#eef1fc";
 export const CELL = "border:1px solid #444;padding:5px 7px;vertical-align:top;text-align:left";

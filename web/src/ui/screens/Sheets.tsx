@@ -1,6 +1,7 @@
 import { st } from "../styles";
 import React from "react";
 import { css } from "../css";
+import { PoweredBy, NoteBox } from "../parts";
 import type { Vals } from "../../vm/types";
 
 const OW_FIELD = "min-width:0;height:38px;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:0 10px;font-size:13px;font-weight:600;color:var(--ink)";
@@ -50,7 +51,7 @@ function OwnerRow({ o, v }: { o: any; v: Vals }) {
 export function Sheets({ v }: { v: Vals }) {
   return (
     <>
-    <div style={css("position:fixed;inset:0;background:rgba(16,16,24,.45);z-index:60;display:flex;align-items:center;justify-content:center;padding:18px;overflow-y:auto")}>
+    <div style={css("position:fixed;inset:0;background:rgba(16,16,24,.45);z-index:60;display:flex;align-items:" + (v.sheetIsMenu ? "flex-start" : "center") + ";justify-content:center;padding:18px;overflow-y:auto")}>
       <div ref={v.dialogRef} role="dialog" aria-modal="true" aria-label={v.sheetTitle} tabIndex={-1} onKeyDown={v.dialogKeys} style={css("outline:none;width:100%;max-width:520px;background:var(--card);border-radius:18px;display:flex;flex-direction:column;max-height:92vh;animation:sheetIn .22s ease;box-shadow:0 20px 50px rgba(0,0,0,.3)")}>
         <div style={css("flex:none;padding:15px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line2)")}>
           <div style={css("flex:1;font-size:16px;font-weight:800")}>{v.sheetTitle}</div>
@@ -84,7 +85,9 @@ export function Sheets({ v }: { v: Vals }) {
               <textarea name="prNote" onChange={v.onField} defaultValue={v.draft.note} rows={3} placeholder={v.T.ekstraNotIstegeBagli} style={css("border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:10px 11px;font-size:14px;font-weight:500;resize:none;line-height:1.5")}></textarea>
               <div style={st.hintLine}>{v.T.notAlaniDisindakiTum}</div>
               </>) : null}
-              <div style={css(v.sheetIsProject ? "border-top:1px solid var(--line2);padding-top:11px;display:flex;flex-direction:column;gap:8px" : "display:flex;flex-direction:column;gap:8px")}>
+              {/* Arsa sahipleri ve vekil yalnızca kendi penceresinde (proje detayındaki kart); yeni proje penceresinde yok. */}
+              {v.sheetIsPeople ? (<>
+              <div style={css("display:flex;flex-direction:column;gap:8px")}>
                 <div style={css("display:flex;align-items:center;gap:8px")}>
                   <div style={css("flex:1;font-size:11px;font-weight:800;letter-spacing:.5px;color:var(--muted)")}>{v.T.arsaSahipleriUp}</div>
                   {v.shareTotal.show ? <span role="status" style={css(v.shareTotal.style)}>{v.shareTotal.text}</span> : null}
@@ -108,8 +111,9 @@ export function Sheets({ v }: { v: Vals }) {
                   <input name="prxAddr" onChange={v.onField} defaultValue={v.draftProxy.address} placeholder={v.T.adresPh} style={css("grid-column:1 / -1;min-width:0;height:40px;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:0 11px;font-size:13px;font-weight:600")} />
                 </div>
               </div>
+              </>) : null}
               {v.needsApproval ? (<>
-                <div style={css("background:var(--tint);border:1px solid var(--tintline);color:var(--brandink);border-radius:9px;padding:10px 12px;font-size:12px;font-weight:700;line-height:1.55")}>{v.T.rolunuzDogrudanDuzenlemeyeKapali}</div>
+                <NoteBox tone="info" extra="font-size:12px;line-height:1.55">{v.T.rolunuzDogrudanDuzenlemeyeKapali}</NoteBox>
               </>) : null}
               <button onClick={v.saveProject} style={st.primary}>{v.saveLabel}</button>
             </div>
@@ -133,7 +137,7 @@ export function Sheets({ v }: { v: Vals }) {
                 </React.Fragment>))}
               </select>
               {v.needsApproval ? (<>
-                <div style={css("background:var(--tint);border:1px solid var(--tintline);color:var(--brandink);border-radius:9px;padding:10px 12px;font-size:12px;font-weight:700")}>{v.T.kayitUstKademeOnayina}</div>
+                <NoteBox tone="info" extra="font-size:12px">{v.T.kayitUstKademeOnayina}</NoteBox>
               </>) : null}
               <button onClick={v.saveAuthor} style={st.primary}>{v.saveLabel}</button>
             </div>
@@ -215,7 +219,23 @@ export function Sheets({ v }: { v: Vals }) {
           </>) : null}
 
           {v.sheetIsMenu ? (<>
+            {/* Mobil profil menüsü: profil önizlemesi, alt çubukta olmayan sayfalar, çıkış. */}
             <div style={css("display:flex;flex-direction:column;gap:7px")}>
+              <div style={css("display:flex;flex-direction:column;gap:11px;background:var(--soft2);border-radius:12px;padding:13px")}>
+                <div style={css("display:flex;align-items:center;gap:11px")}>
+                  <span style={css("width:44px;height:44px;flex:none;border-radius:50%;background:var(--card);border:1px solid var(--line);color:var(--brandink);font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center")}>{v.meInitials}</span>
+                  <div style={css("min-width:0;flex:1")}>
+                    <div style={css("font-size:15px;font-weight:800")}>{v.meName}</div>
+                    <div style={css("font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{v.meEmail}</div>
+                  </div>
+                </div>
+                <div style={css("display:flex;gap:7px;flex-wrap:wrap")}>
+                  <span style={css("font-size:11px;font-weight:800;padding:4px 8px;border-radius:999px;background:var(--tint);color:var(--brandink)")}>{v.meRoleLabel} {v.T.k2}{v.meLevel}</span>
+                  <span style={css("font-size:11px;font-weight:800;padding:4px 8px;border-radius:999px;background:var(--card);color:var(--muted)")}>{v.myOpenTaskLabel}</span>
+                </div>
+                <button onClick={v.goProfile} style={css("height:40px;border:1px solid var(--line);background:var(--card);border-radius:9px;font-size:13px;font-weight:700;color:var(--ink);display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer")}>{v.profileIcon}{v.T.profilAyarlari}</button>
+              </div>
+              <div style={css("height:4px")} />
               {(v.menuItems || []).map((n: any, i94: number) => (<React.Fragment key={n?.id ?? n?.key ?? i94}>
                 <button onClick={n.onClick} style={css(n.sideStyle)}>
                   {n.icon}
@@ -226,20 +246,8 @@ export function Sheets({ v }: { v: Vals }) {
                 </button>
               </React.Fragment>))}
               <div style={css("display:flex;flex-direction:column;gap:9px;border-top:1px solid var(--line2);padding-top:11px;margin-top:4px")}>
-                <div style={css("display:flex;align-items:center;gap:10px;height:44px;padding:0 11px;background:var(--soft);border:1px solid var(--line);border-radius:10px")}>
-                  <span style={css("flex:1;font-size:13px;font-weight:700;color:var(--ink)")}>{v.T.karanlikMod2}</span>
-                  <button onClick={v.toggleTheme} aria-label={v.T.karanlikMod2} style={css(v.themeIconBtnStyle)}>{v.themeIcon}</button>
-                </div>
-                <div style={css("display:flex;align-items:center;gap:10px;height:44px;padding:0 11px;background:var(--soft);border:1px solid var(--line);border-radius:10px")}>
-                  <span style={css("flex:1;font-size:13px;font-weight:700;color:var(--ink)")}>{v.T.dil}</span>
-                  <button onClick={v.toggleLang} aria-label={v.T.dil} style={css(v.langBtnStyle)}>{v.langLabel}</button>
-                </div>
-                <button onClick={v.logout} style={css("height:44px;border:1px solid var(--errline);background:var(--err);border-radius:10px;font-size:13px;font-weight:800;color:var(--errtext);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px")}>{v.logoutIcon}{v.T.cikis}</button>
-                <div style={css("display:flex;align-items:center;justify-content:center;gap:6px;padding:2px 0")}>
-                  <span style={css("font-size:11px;font-weight:500;color:var(--faint)")}>powered by</span>
-                  {v.brandMarkXs}
-                  <span style={css("font-size:13px;font-weight:700;letter-spacing:-.3px;line-height:1;color:var(--logo-a)")}>dos<span style={css("color:var(--logo-b)")}>yapı</span></span>
-                </div>
+                <button onClick={v.logout} style={css("height:44px;border:1px solid var(--errline);background:var(--err);border-radius:10px;font-size:13px;font-weight:800;color:var(--errtext);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px")}>{v.logoutIcon}{v.T.cikisYap}</button>
+                <div style={css("display:flex;justify-content:center;padding:2px 0")}><PoweredBy mark={v.brandMarkXs} /></div>
               </div>
             </div>
           </>) : null}

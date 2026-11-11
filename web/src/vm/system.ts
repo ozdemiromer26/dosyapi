@@ -39,7 +39,11 @@ export function buildSystem(c: Ctx): () => Vals {
     isLoading: s.mode === "loading",
     isSetup: s.mode === "setup",
     completeSetup: () => app.completeSetup(),
-    brandMarkLg: DMARK(62),
+    // Sihirbaz alanları kendi durumunda tutar; son adımda tek istekle gönderir.
+    completeSetupWith: (f) => { app.fd = { ...f }; return app.completeSetup(); },
+    finishSetup: () => app.finishSetup(),
+    setupDone: s.setupDone, clearAuthError: () => app.setState({ authError: "" }),
+    brandMarkLg: DMARK(56),
     totpNeeded: s.totpNeeded, masterTotpNeeded: s.masterTotpNeeded,
     busy: s.busy,
 

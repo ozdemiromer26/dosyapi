@@ -210,6 +210,21 @@ CREATE TABLE pendings (
     file_name    TEXT
 );
 
+-- Talep edenin "Gönderilen onaylar" listesi için sonuçlanmış talepler (onay/ret, karar veren).
+CREATE TABLE request_outcomes (
+    id          TEXT PRIMARY KEY,
+    by_id       TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL,
+    entity      TEXT NOT NULL,
+    title       TEXT NOT NULL,
+    detail      TEXT NOT NULL,
+    sent_at     INTEGER NOT NULL,
+    decided_at  INTEGER NOT NULL,
+    decider     TEXT NOT NULL,
+    approved    INTEGER NOT NULL
+);
+CREATE INDEX request_outcomes_by ON request_outcomes (by_id, decided_at);
+
 CREATE TABLE history (
     id   TEXT PRIMARY KEY,
     text TEXT NOT NULL,

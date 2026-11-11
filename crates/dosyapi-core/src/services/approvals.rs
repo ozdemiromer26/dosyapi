@@ -10,6 +10,7 @@ use std::sync::Arc;
 pub struct ApprovalService {
     pub pendings: Arc<dyn PendingRepo>,
     pub history: Arc<dyn HistoryRepo>,
+    pub outcomes: Arc<dyn OutcomeRepo>,
     pub users: Arc<dyn UserRepo>,
     pub roles: Arc<dyn RoleRepo>,
     pub sessions: Arc<dyn SessionRepo>,
@@ -21,8 +22,25 @@ pub struct ApprovalService {
 }
 
 impl ApprovalService {
-    async fn close(&self, pending: &Pending, ok: bool) -> AppResult<()> {
+    async fn close(&self, actor: &Actor, pending: &Pending, ok: bool) -> AppResult<()> {
         self.pendings.delete(&pending.id).await?;
+        // Kayıt talebinde talep eden henüz bir hesap değil; diğerlerinde sonuç ona gösterilir.
+        if pending.kind != PendingKind::UserApprove {
+            self.outcomes
+                .insert(&RequestOutcome {
+                    id: new_id(),
+                    by_id: pending.by_id.clone(),
+                    kind: pending.kind,
+                    entity: pending.entity,
+                    title: pending.title.clone(),
+                    detail: pending.detail.clone(),
+                    sent_at: pending.when,
+                    decided_at: self.clock.now(),
+                    decider: actor.name.clone(),
+                    approved: ok,
+                })
+                .await?;
+        }
         self.history
             .insert(&HistoryEntry {
                 id: new_id(),
@@ -69,7 +87,7 @@ impl ApprovalService {
             }
             payload => self.applier.apply(payload).await?,
         }
-        self.close(&pending, true).await?;
+        self.close(actor, &pending, true).await?;
         self.audit
             .user(actor, "approval.approved", &pending.title, "")
             .await
@@ -88,9 +106,39 @@ impl ApprovalService {
             }
             _ => {}
         }
-        self.close(&pending, false).await?;
+        self.close(actor, &pending, false).await?;
         self.audit
             .user(actor, "approval.rejected", &pending.title, "")
             .await
+    }
+
+    /// Talep eden, karar verilmemiş kendi talebini geri çeker. Başkasının talebi "yok" sayılır.
+    pub async fn withdraw(&self, actor: &Actor, id: &str) -> AppResult<()> {
+        let pending = self
+            .pendings
+            .get(id)
+            .await?
+            .filter(|p| p.by_id == actor.user_id && p.kind != PendingKind::UserApprove)
+            .ok_or(AppError::NotFound)?;
+        if let PendingPayload::FileAdd { file_id, .. } = &pending.payload {
+            self.files.delete(file_id).await?;
+            self.store.delete(file_id).await?;
+        }
+        self.pendings.delete(&pending.id).await?;
+        self.history
+            .insert(&HistoryEntry {
+                id: new_id(),
+                text: format!("{} geri çekildi", pending.title),
+                when: self.clock.now(),
+                ok: false,
+            })
+            .await?;
+        self.audit
+            .user(actor, "approval.withdrawn", &pending.title, "")
+            .await
+    }
+
+    pub async fn sent_outcomes(&self, actor: &Actor) -> AppResult<Vec<RequestOutcome>> {
+        self.outcomes.list_for(&actor.user_id, 30).await
     }
 }

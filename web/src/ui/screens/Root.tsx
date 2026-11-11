@@ -65,18 +65,31 @@ export function Root({ v }: { v: Vals }) {
           </div>
         </div>
         {v.genHasTpl ? (<>
-          <div style={css("flex:none;padding:12px 18px;border-top:1px solid var(--line2);display:flex;gap:8px;align-items:center;flex-wrap:wrap")}>
-            {v.genBusyLabel ? (<>
-              <span style={css("font-size:13px;font-weight:700;color:var(--brandink)")}>{v.genBusyLabel}</span>
-            </>) : null}
-            <div style={css("flex:1")}></div>
-            {v.genCanSave ? (<>
-              <button onClick={v.genSave} style={css("height:40px;padding:0 14px;border:1px dashed var(--pri,#2a3180);background:var(--tint);border-radius:9px;font-size:13px;font-weight:700;color:var(--brandink);cursor:pointer;white-space:nowrap")}>{v.T.projeyeKaydet}</button>
-            </>) : null}
-            <button onClick={v.genWord} style={css("height:40px;padding:0 14px;border:1px solid var(--line);background:var(--card);border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap")}>{v.T.wordIndir}</button>
-            <button onClick={v.genPrint} style={css("height:40px;padding:0 14px;border:1px solid var(--line);background:var(--card);border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap")}>{v.T.yazdir}</button>
-            <button onClick={v.genPdf} style={css("height:40px;padding:0 16px;border:none;background:var(--pri,#2a3180);color:#fff;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap")}>{v.T.pdfIndir}</button>
-          </div>
+          {v.isMobile ? (
+            /* Mobil: tek satır, eşit sütunlar, kısa etiketler. Kaydet yoksa üç sütun. */
+            <div style={css("flex:none;padding:10px 12px;border-top:1px solid var(--line2);display:flex;flex-direction:column;gap:6px")}>
+              {v.genBusyLabel ? <span role="status" style={css("font-size:12px;font-weight:700;color:var(--brandink);text-align:center")}>{v.genBusyLabel}</span> : null}
+              <div style={css("display:grid;gap:6px;grid-template-columns:repeat(" + (v.genCanSave ? 4 : 3) + ",minmax(0,1fr))")}>
+                {v.genCanSave ? <button onClick={v.genSave} aria-label={v.T.projeyeKaydet} style={css("height:40px;padding:0 4px;border:1px dashed var(--pri,#2a3180);background:var(--tint);border-radius:9px;font-size:13px;font-weight:700;color:var(--brandink);cursor:pointer;white-space:nowrap")}>{v.T.kaydet}</button> : null}
+                <button onClick={v.genWord} aria-label={v.T.wordIndir} style={css("height:40px;padding:0 4px;border:1px solid var(--line);background:var(--card);border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap")}>Word</button>
+                <button onClick={v.genPrint} style={css("height:40px;padding:0 4px;border:1px solid var(--line);background:var(--card);border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap")}>{v.T.yazdir}</button>
+                <button onClick={v.genPdf} aria-label={v.T.pdfIndir} style={css("height:40px;padding:0 4px;border:none;background:var(--pri,#2a3180);color:#fff;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap")}>PDF</button>
+              </div>
+            </div>
+          ) : (
+                    <div style={css("flex:none;padding:12px 18px;border-top:1px solid var(--line2);display:flex;gap:8px;align-items:center;flex-wrap:wrap")}>
+              {v.genBusyLabel ? (<>
+                <span style={css("font-size:13px;font-weight:700;color:var(--brandink)")}>{v.genBusyLabel}</span>
+              </>) : null}
+              <div style={css("flex:1")}></div>
+              {v.genCanSave ? (<>
+                <button onClick={v.genSave} style={css("height:40px;padding:0 14px;border:1px dashed var(--pri,#2a3180);background:var(--tint);border-radius:9px;font-size:13px;font-weight:700;color:var(--brandink);cursor:pointer;white-space:nowrap")}>{v.T.projeyeKaydet}</button>
+              </>) : null}
+              <button onClick={v.genWord} style={css("height:40px;padding:0 14px;border:1px solid var(--line);background:var(--card);border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap")}>{v.T.wordIndir}</button>
+              <button onClick={v.genPrint} style={css("height:40px;padding:0 14px;border:1px solid var(--line);background:var(--card);border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap")}>{v.T.yazdir}</button>
+              <button onClick={v.genPdf} style={css("height:40px;padding:0 16px;border:none;background:var(--pri,#2a3180);color:#fff;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap")}>{v.T.pdfIndir}</button>
+            </div>
+          )}
         </>) : null}
       </div>
     </div>

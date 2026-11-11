@@ -13,6 +13,7 @@ import { ProfileScreen } from "./ProfileScreen";
 import { TemplatesScreen } from "./TemplatesScreen";
 import { CompanyScreen } from "./CompanyScreen";
 import { AboutCard } from "./MasterAbout";
+import { PoweredBy } from "../parts";
 
 /** Üst çubuğun gerçek yüksekliğini `--hdr-h` olarak yayınlar; yapışkan araç çubukları
  *  bu değerin hemen altına oturur. `data-stickbar` taşıyan öğe yapıştığında
@@ -78,13 +79,9 @@ export function AppShell({ v }: { v: Vals }) {
               </>) : null}
             </button>
           </React.Fragment>))}
+          {/* Çıkış artık profil menüsünde; kenar çubuğunun altında yalnızca imza kalır. */}
           <div style={css("margin-top:auto;display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line2);padding-top:10px")}>
-            <button onClick={v.logout} style={css("height:40px;border-radius:9px;border:1px solid var(--errline);background:var(--err);font-size:13px;font-weight:800;color:var(--errtext);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px")}>{v.logoutIcon}{v.T.cikis}</button>
-            <div style={css("display:flex;align-items:center;gap:6px;padding:4px 4px 0")}>
-              <span style={css("font-size:11px;font-weight:500;color:var(--faint)")}>powered by</span>
-              {v.brandMarkXs}
-              <span style={css("font-size:13px;font-weight:700;letter-spacing:-.3px;line-height:1;color:var(--logo-a)")}>dos<span style={css("color:var(--logo-b)")}>yapı</span></span>
-            </div>
+            <div style={css("padding:4px 4px 0")}><PoweredBy mark={v.brandMarkXs} /></div>
           </div>
         </div>
       </>) : null}
@@ -102,14 +99,19 @@ export function AppShell({ v }: { v: Vals }) {
           </>) : null}
           <div style={css("flex:1;min-width:110px")}>
             <div style={css("font-size:14px;font-weight:800;letter-spacing:-.2px")}>{v.screenTitle}</div>
-            <div style={css("font-size:11px;color:var(--muted);font-weight:700")}>{v.companyName}</div>
+            {/* Masaüstünde şirket adı kenar çubuğunda zaten yazılı; üst çubukta yalnızca mobilde. */}
+            {v.isMobile ? <div style={css("font-size:11px;color:var(--muted);font-weight:700")}>{v.companyName}</div> : null}
           </div>
-          <div style={css("position:relative;display:flex")}>
-            {v.badgeCount ? (<>
-              <button onClick={v.toggleNotif} style={css("height:36px;padding:0 11px;border-radius:9px;border:1px solid var(--line);background:var(--card);font-size:12px;font-weight:700;color:var(--brandink);cursor:pointer;white-space:nowrap")}>● {v.badgeCount} {v.T.yeniBildirim}</button>
-            </>) : null}
+          <div style={css(v.isDesktop ? "position:relative;display:flex" : "display:flex")}>
+            {/* Bildirim: zil + sayı rozeti (sayı yoksa yalnızca zil). */}
+            <button onClick={v.toggleNotif} aria-expanded={!!v.notifOpen} aria-label={v.badgeCount ? v.badgeCount + " " + v.T.yeniBildirim : v.T.bildirimler}
+              style={css("position:relative;width:36px;height:36px;flex:none;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--brandink);display:flex;align-items:center;justify-content:center;cursor:pointer")}>
+              {v.bellIcon}
+              {v.badgeCount ? <span aria-hidden="true" style={css("position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;background:var(--pri,#2a3180);color:#fff;font-size:10px;font-weight:800;line-height:17px;text-align:center;box-shadow:0 0 0 2px var(--card)")}>{v.badgeCount}</span> : null}
+            </button>
             {v.notifOpen ? (<>
-              <div style={css("position:absolute;top:42px;right:0;width:320px;max-width:86vw;background:var(--card);border:1px solid var(--line);border-radius:13px;box-shadow:0 14px 34px rgba(0,0,0,.16);padding:12px;display:flex;flex-direction:column;gap:10px;z-index:40;animation:popIn .16s ease")}>
+              <div style={css((v.isDesktop ? "position:absolute;top:42px;right:0;width:320px;max-width:86vw;" : "position:absolute;top:56px;right:12px;left:12px;") + "background:var(--card);border:1px solid var(--line);border-radius:13px;box-shadow:0 14px 34px rgba(0,0,0,.16);padding:12px;display:flex;flex-direction:column;gap:10px;z-index:40;animation:popIn .16s ease")}>
+                {v.noNotif ? <div style={st.note}>{v.T.yeniBildirimYok}</div> : null}
                 {v.hasNotifApprovals ? (<>
                   <div style={st.stack6}>
                     <div style={st.overline}>{v.T.bekleyenOnaylar}</div>
@@ -147,18 +149,15 @@ export function AppShell({ v }: { v: Vals }) {
               </div>
             </>) : null}
           </div>
-          {v.isDesktop ? (<>
-            <button onClick={v.toggleLang} aria-label={v.T.dil} style={css(v.langBtnStyle)}>{v.langLabel}</button>
-            <button onClick={v.toggleTheme} aria-label={v.T.karanlikMod2} style={css(v.themeIconBtnStyle)}>{v.themeIcon}</button>
-          </>) : null}
+          {/* Dil ve tema her ekran boyutunda üst çubukta. */}
+          <button onClick={v.toggleLang} aria-label={v.T.dil} style={css(v.langBtnStyle)}>{v.langLabel}</button>
+          <button onClick={v.toggleTheme} aria-label={v.T.karanlikMod2} style={css(v.themeIconBtnStyle)}>{v.themeIcon}</button>
           {v.isDesktop ? (<>
           <div style={css("position:relative;display:flex")}>
-            <button onClick={v.toggleProfileMenu} style={css("height:36px;padding:0 6px 0 10px;border-radius:9px;border:1px solid var(--line);background:var(--card);display:flex;align-items:center;gap:9px;cursor:pointer")}>
-              <span style={css("text-align:right")}>
-                <span style={css("display:block;font-size:12px;font-weight:800;color:var(--ink)")}>{v.meName}</span>
-                <span style={css("display:block;font-size:11px;font-weight:700;color:var(--muted)")}>{v.meRoleLabel}</span>
-              </span>
-              <span style={css("width:26px;height:26px;border-radius:50%;background:var(--soft3);color:var(--brandink);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center")}>{v.meInitials}</span>
+            {/* Profil: yalnızca yuvarlak baş harf; ad, e-posta ve rol açılan menüde. */}
+            <button onClick={v.toggleProfileMenu} aria-expanded={!!v.profileMenuOpen} aria-label={v.T.profil + ": " + v.meName} title={v.meName}
+              style={css("width:36px;height:36px;padding:0;border-radius:50%;border:1px solid " + (v.profileMenuOpen ? "var(--tintline)" : "var(--line)") + ";background:var(--soft3);color:var(--brandink);font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer")}>
+              {v.meInitials}
             </button>
             {v.profileMenuOpen ? (<>
               <div style={css("position:absolute;top:42px;right:0;width:270px;max-width:86vw;background:var(--card);border:1px solid var(--line);border-radius:13px;box-shadow:0 14px 34px rgba(0,0,0,.16);padding:13px;display:flex;flex-direction:column;gap:11px;z-index:45;animation:popIn .16s ease")}>

@@ -1,17 +1,19 @@
 import { st } from "../styles";
 import React from "react";
 import { css } from "../css";
+import { PoweredBy, NoteBox, AuthBackdrop, AUTH_BG } from "../parts";
 import type { Vals } from "../../vm/types";
 
 export function AuthScreen({ v }: { v: Vals }) {
   return (
     <>
-    <div style={css("flex:1;position:relative;display:flex;align-items:center;justify-content:center;padding:32px 16px;background:radial-gradient(120% 70% at 50% 0%,var(--soft) 0%,var(--line) 100%)")}>
-      <div style={css("position:absolute;top:16px;right:16px;display:flex;align-items:center;gap:8px")}>
+    <div style={css("flex:1;position:relative;display:flex;align-items:center;justify-content:center;padding:32px 16px;" + AUTH_BG)}>
+      <AuthBackdrop />
+      <div style={css("position:absolute;top:16px;right:16px;z-index:2;display:flex;align-items:center;gap:8px")}>
         <button onClick={v.toggleLang} aria-label={v.T.dil} style={css(v.langBtnStyle)}>{v.langLabel}</button>
         <button onClick={v.toggleTheme} aria-label={v.T.karanlikMod2} style={css(v.themeIconBtnStyle)}>{v.themeIcon}</button>
       </div>
-      <div style={css("width:100%;max-width:420px;display:flex;flex-direction:column;gap:20px")}>
+      <div style={css("position:relative;z-index:1;width:100%;max-width:420px;display:flex;flex-direction:column;gap:20px")}>
         <div style={css("display:flex;flex-direction:column;align-items:center;gap:12px")}>
           {v.hasLogo ? (<>
             <img src={v.logoUrl} alt="Logo" style={css("width:62px;height:62px;border-radius:17px;object-fit:cover")} />
@@ -72,7 +74,7 @@ export function AuthScreen({ v }: { v: Vals }) {
                   <input name="pass" onChange={v.onField} type="password" placeholder={v.T.enAz4Karakter} style={st.fieldAuth} />
                 </label>
               </div>
-              <div style={css("background:var(--tint);border:1px solid var(--tintline);color:var(--brandink);border-radius:9px;padding:11px 12px;font-size:12px;font-weight:600;line-height:1.55")}>{v.T.kayitTalebinizYetkiliBir}</div>
+              <NoteBox tone="info" extra="padding:11px 12px;font-size:12px;font-weight:600;line-height:1.55">{v.T.kayitTalebinizYetkiliBir}</NoteBox>
               {v.hasNotice ? (
                 <div style={css("display:flex;align-items:flex-start;gap:9px")}>
                   <button onClick={v.toggleNotice} role="checkbox" aria-checked={!!v.noticeAccepted} aria-label={v.T.aydinlatmaOnay} style={css(v.noticeCheckStyle)}>{v.noticeMark}</button>
@@ -114,19 +116,17 @@ export function AuthScreen({ v }: { v: Vals }) {
           </>) : null}
 
           {v.authError ? (<>
-            <div style={css("background:var(--err);border:1px solid var(--errline);color:var(--errtext);border-radius:9px;padding:10px 12px;font-size:13px;font-weight:700")}>{v.authError}</div>
+            <NoteBox tone="err" role="alert">{v.authError}</NoteBox>
           </>) : null}
           {v.authInfo ? (<>
-            <div style={css("background:var(--ok);border:1px solid var(--okline);color:var(--oktext);border-radius:9px;padding:10px 12px;font-size:13px;font-weight:700")}>{v.authInfo}</div>
+            <NoteBox tone="ok" role="status">{v.authInfo}</NoteBox>
           </>) : null}
 
           
         </div>
 
-        <div onClick={v.brandTap} style={css("display:flex;align-items:center;justify-content:center;gap:6px;user-select:none")}>
-          <span style={css("font-size:12px;font-weight:500;color:var(--muted)")}>powered by</span>
-          {v.brandMarkXs}
-          <span style={css("font-size:14px;font-weight:700;letter-spacing:-.3px;line-height:1;color:var(--logo-a)")}>dos<span style={css("color:var(--logo-b)")}>yapı</span></span>
+        <div onClick={v.brandTap} style={css("display:flex;justify-content:center;user-select:none")}>
+          <PoweredBy mark={v.brandMarkXs} size={14} label={12} />
         </div>
 
       </div>

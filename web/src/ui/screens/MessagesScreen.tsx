@@ -122,7 +122,8 @@ export function MessagesScreen({ v }: { v: Vals }) {
 
   const showList = m.wide || !open;
   const showThread = m.wide || !!open;
-  const height = "height:calc(100dvh - var(--hdr-h,59px) - " + (m.bottomBar ? "122px" : "48px") + ");min-height:380px";
+  // Üst çubuk + içerik üst boşluğu (20) + alt boşluk (masaüstü 16, mobil 80): kutu ekranı tam doldurur.
+  const height = "height:calc(100dvh - var(--hdr-h,59px) - " + (m.bottomBar ? "100px" : "36px") + ");min-height:380px";
   const people = m.users.filter((u: any) => !query || (u.name + " " + u.role).toLocaleLowerCase(LOC()).includes(query.toLocaleLowerCase(LOC())));
 
   const list = (

@@ -1,6 +1,7 @@
 import { st } from "../styles";
 import React from "react";
 import { css } from "../css";
+import { NoteBox } from "../parts";
 import type { Vals } from "../../vm/types";
 
 export function ProjectsScreen({ v }: { v: Vals }) {
@@ -36,7 +37,7 @@ export function ProjectsScreen({ v }: { v: Vals }) {
               </>) : null}
             </div>
             {v.permNotice ? (<>
-              <div style={css("background:var(--tint);border:1px solid var(--tintline);color:var(--brandink);border-radius:10px;padding:11px 13px;font-size:13px;font-weight:700;line-height:1.5")}>{v.permNotice}</div>
+              <NoteBox tone="info">{v.permNotice}</NoteBox>
             </>) : null}
 
             <div style={css("display:flex;gap:16px;align-items:flex-start")}>
@@ -100,7 +101,7 @@ export function ProjectsScreen({ v }: { v: Vals }) {
                   </>) : null}
                   <div style={css("margin-top:auto;display:flex;gap:7px;flex-wrap:wrap")}>
                     <button onClick={p.onOpen} style={css("flex:1;min-width:88px;height:36px;border:1px solid var(--line);background:var(--card);border-radius:9px;font-size:13px;font-weight:700;cursor:pointer")}>{v.T.detay}</button>
-                    <button onClick={p.onDoc} style={css("flex:1;min-width:88px;height:36px;border:1px solid var(--line);background:var(--card);border-radius:9px;font-size:13px;font-weight:700;color:var(--acc,#1d72b8);cursor:pointer")}>{v.T.belge2}</button>
+                    <button onClick={p.onDoc} style={css("flex:1;min-width:88px;height:36px;border:1px solid var(--line);background:var(--card);border-radius:9px;font-size:13px;font-weight:700;color:var(--brandink);cursor:pointer")}>{v.T.belge2}</button>
                     {p.canWrite ? (<>
                       <button onClick={p.onDelete} style={css("width:52px;height:36px;border:1px solid var(--errline);background:var(--err);border-radius:9px;font-size:13px;font-weight:700;color:var(--errtext);cursor:pointer")}>{v.T.sil}</button>
                     </>) : null}
@@ -165,7 +166,7 @@ export function ProjectsScreen({ v }: { v: Vals }) {
                   const actions = (
                     <div role="cell" style={css(v.listActStyle)}>
                       <button onClick={p.onOpen} style={css("height:32px;padding:0 11px;border:1px solid var(--line);background:var(--card);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer")}>{v.T.detay}</button>
-                      <button onClick={p.onDoc} style={css("height:32px;padding:0 11px;border:1px solid var(--line);background:var(--card);border-radius:8px;font-size:12px;font-weight:700;color:var(--acc,#1d72b8);cursor:pointer")}>{v.T.belge2}</button>
+                      <button onClick={p.onDoc} style={css("height:32px;padding:0 11px;border:1px solid var(--line);background:var(--card);border-radius:8px;font-size:12px;font-weight:700;color:var(--brandink);cursor:pointer")}>{v.T.belge2}</button>
                     </div>
                   );
                   return (

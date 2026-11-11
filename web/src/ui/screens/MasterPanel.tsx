@@ -14,16 +14,17 @@ import { MasterAbout } from "./MasterAbout";
 export function MasterPanel({ v }: { v: Vals }) {
   return (
     <>
-    <div style={css("flex:1;background:var(--mbg);padding:0 0 60px;--pri:#1E4FD8;--acc:#163CA8;--brandink:var(--mbrandink);font-family:'IBM Plex Sans',ui-sans-serif,system-ui,sans-serif")}>
-      <div style={css("position:sticky;top:0;z-index:10;background:var(--mbg);border-bottom:1px solid var(--mline);padding:14px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap")}>
+    <div style={css("flex:1;background:var(--mbg);padding:0 0 60px;--pri:#1E4FD8;--acc:#163CA8;--brandink:var(--mbrandink);font-family:var(--sans)")}>
+      <div style={css("position:sticky;top:0;z-index:10;background:var(--mbg);border-bottom:1px solid var(--mline);padding:14px 18px;display:flex;align-items:center;gap:" + (v.isDesktop ? 12 : 8) + "px")}>
         <div style={css("width:34px;height:34px;border-radius:9px;background:#FFFFFF;border:1px solid var(--mline);display:flex;align-items:center;justify-content:center;flex:none")}>{v.brandMarkLight}</div>
-        <div style={css("flex:1;min-width:160px")}>
-          <div style={css("font-size:14px;font-weight:700;color:var(--mink);letter-spacing:-.2px")}>dos<span style={css("color:var(--logo-b)")}>yapı</span> <span style={css("color:var(--mmuted);font-weight:600")}>· {v.T.sistemPaneli}</span></div>
-          <div style={css("font-size:12px;color:var(--mmuted);font-weight:600")}>{v.T.kurulumRollerVeKullanici}</div>
+        {/* Başlık tek satır kalır: mobilde de Çıkış alta düşmez. */}
+        <div style={css("flex:1;min-width:0")}>
+          <div style={css("font-size:14px;color:var(--mink);white-space:nowrap")}><span className="wm">dos<span style={css("color:var(--logo-b)")}>yapı</span></span></div>
+          <div style={css("font-size:12px;color:var(--mmuted);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{v.T.sistemPaneliAd}</div>
         </div>
         <button onClick={v.toggleLang} aria-label={v.T.dil} style={css(v.langBtnStyleM)}>{v.langLabel}</button>
         <button onClick={v.toggleTheme} aria-label={v.T.karanlikMod2} style={css(v.themeIconBtnStyleM)}>{v.themeIcon}</button>
-        <button onClick={v.closeMaster} style={css("height:36px;padding:0 14px;border-radius:9px;border:1px solid var(--merrline);background:var(--merr);color:var(--merrtext);font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:7px")}>{v.logoutIcon}{v.T.cikis}</button>
+        <button onClick={v.closeMaster} style={css("flex:none;white-space:nowrap;height:36px;padding:0 " + (v.isDesktop ? 14 : 11) + "px;border-radius:9px;border:1px solid var(--merrline);background:var(--merr);color:var(--merrtext);font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:7px")}>{v.logoutIcon}{v.T.cikis}</button>
       </div>
 
       {v.masterLocked ? (<>

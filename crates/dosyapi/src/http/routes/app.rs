@@ -65,6 +65,8 @@ async fn bootstrap(
     value["installedAt"] = json!(state.services.updates.record_running_version().await?);
     value["developer"] = json!(env!("CARGO_PKG_AUTHORS"));
     value["unreadMessages"] = json!(state.services.messages.unread(&auth.actor).await?);
+    // "Gönderilen onaylar": kullanıcının sonuçlanmış talepleri (bekleyenler pendings içinde).
+    value["sentOutcomes"] = json!(state.services.approvals.sent_outcomes(&auth.actor).await?);
     Ok(Json(value))
 }
 
@@ -416,6 +418,19 @@ struct ApproveInput {
     role_id: Option<String>,
 }
 
+async fn withdraw(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<StatusCode> {
+    state
+        .services
+        .approvals
+        .withdraw(&auth.actor, &id.to_string())
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 async fn approve(
     State(state): State<AppState>,
     AuthUser(auth): AuthUser,
@@ -725,6 +740,7 @@ pub fn router() -> Router<AppState> {
         .route("/todos/{id}", delete(todo_delete))
         .route("/approvals/{id}/approve", post(approve))
         .route("/approvals/{id}/reject", post(reject))
+        .route("/approvals/{id}/withdraw", post(withdraw))
         .route("/profile", put(profile_update))
         .route("/profile/password", post(profile_password))
         .route("/profile/delete-request", post(profile_delete_request))

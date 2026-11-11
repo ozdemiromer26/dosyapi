@@ -29,7 +29,7 @@ export function buildAuth(c: Ctx): () => Vals {
       showRegister: () => { app.fd = {}; app.setState({ authMode: "register", authError: "", authInfo: "" }); },
       onField: (e) => { app.fd[e.target.name] = e.target.value; },
       onSearch: (e) => app.setState({ q: e.target.value }),
-      onProjFilter: (e) => app.setState({ projFilter: e.target.value, selAuthors: [] }),
+      onProjFilter: (e) => app.setState({ projFilter: e.target.value, selAuthors: [], selContractors: [] }),
 
       doLogin: () => app.login(),
       doRegister: () => app.register(),

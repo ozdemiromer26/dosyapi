@@ -1,6 +1,7 @@
 import { st } from "../styles";
 import React from "react";
 import { css } from "../css";
+import { NoteBox } from "../parts";
 import type { Vals } from "../../vm/types";
 import { LOC } from "../../i18n";
 
@@ -32,7 +33,7 @@ function InfoCard({ v }: { v: Vals }) {
         ) : <span title={v.T.isDurumu} style={css(i.badgeStyle)}>{i.statusLabel}</span>}
         {i.canEdit ? <button onClick={i.onEdit} style={css(SMALL)}>{v.T.duzenle}</button> : null}
       </div>
-      {i.lockedNote ? <div style={css("grid-column:1 / -1;background:var(--warn);color:var(--warntext);border-radius:9px;padding:8px 11px;font-size:12px;font-weight:700;line-height:1.5")}>{i.lockedNote}</div> : null}
+      {i.lockedNote ? <NoteBox tone="warn" extra="grid-column:1 / -1">{i.lockedNote}</NoteBox> : null}
 
       <div style={st.stack11}>
         <div style={css(i.photoBoxStyle)}>
@@ -74,7 +75,7 @@ function InfoCard({ v }: { v: Vals }) {
               <textarea id="inNote" name="inNote" onChange={v.onField} defaultValue={i.form.note} rows={3} style={css("width:100%;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:10px 11px;font-size:14px;font-weight:500;resize:vertical;line-height:1.5;color:var(--ink)")}></textarea>
             </div>
           </div>
-          {i.approvalNote ? <div style={css("margin-top:12px;background:var(--tint);border:1px solid var(--tintline);color:var(--brandink);border-radius:9px;padding:9px 11px;font-size:12px;font-weight:700;line-height:1.5")}>{i.approvalNote}</div> : null}
+          {i.approvalNote ? <NoteBox tone="info" extra="margin-top:12px">{i.approvalNote}</NoteBox> : null}
           <div style={css("margin-top:14px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap")}>
             <button onClick={i.onCancel} style={css(BTN)}>{v.T.vazgec}</button>
             <button onClick={i.onSave} style={css("height:40px;padding:0 18px;border:none;background:var(--pri,#2a3180);color:#fff;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer")}>{i.saveLabel}</button>
@@ -236,7 +237,7 @@ export function DetailScreen({ v }: { v: Vals }) {
   return (
     <>
           <div style={css("display:flex;flex-direction:column;gap:15px")}>
-            <button onClick={v.goProjects} style={css("align-self:flex-start;border:none;background:none;color:var(--acc,#1d72b8);font-size:13px;font-weight:700;cursor:pointer;padding:0")}>{v.T.projeler3}</button>
+            <button onClick={v.goProjects} style={css("align-self:flex-start;border:none;background:none;color:var(--brandink);font-size:13px;font-weight:700;cursor:pointer;padding:0")}>{v.T.projeler3}</button>
             <div style={css("display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap")}>
               <div style={css("flex:1;min-width:200px")}>
                 <h1 style={css("margin:0;font-size:21px;font-weight:800;letter-spacing:-.3px")}>{v.detail.name}</h1>
@@ -305,7 +306,7 @@ export function DetailScreen({ v }: { v: Vals }) {
                   </React.Fragment>))}
                 </div>
                 {v.hasAuthorMissDetail ? (<>
-                  <div style={css("background:var(--err);border:1px solid var(--errline);color:var(--errtext);border-radius:9px;padding:9px 11px;font-size:12px;font-weight:700;line-height:1.45")}>{v.authorMissDetail}</div>
+                  <NoteBox tone="err" extra="font-size:12px;padding:9px 11px;line-height:1.45">{v.authorMissDetail}</NoteBox>
                 </>) : null}
                 <div style={st.hintLine}>{v.T.seciliMuelliflerYapiDenetim}</div>
               </div>
@@ -386,7 +387,7 @@ export function DetailScreen({ v }: { v: Vals }) {
                   </React.Fragment>))}
                 </div>
                 {v.docsNeedApproval ? (<>
-                  <div style={css("background:var(--tint);border:1px solid var(--tintline);color:var(--brandink);border-radius:9px;padding:9px 11px;font-size:12px;font-weight:700;line-height:1.5")}>{v.T.rolunuzOnayliDuzenlemeYuklediginiz}</div>
+                  <NoteBox tone="info" extra="font-size:12px;padding:9px 11px">{v.T.rolunuzOnayliDuzenlemeYuklediginiz}</NoteBox>
                 </>) : null}
               </div>
 

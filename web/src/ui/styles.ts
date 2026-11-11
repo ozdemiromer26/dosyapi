@@ -40,7 +40,7 @@ export const st = define({
   title14: "font-size:14px;font-weight:800",
   title13: "font-size:13px;font-weight:800",
   rowTitle: `font-size:14px;font-weight:700;${ellipsis}`,
-  overline: "font-size:11px;font-weight:800;letter-spacing:.5px;color:var(--muted)",
+  overline: "font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--muted)",
   caption: `font-size:11px;${muted}`,
   hint: `font-size:12px;${muted}`,
   hintBold: "font-size:12px;color:var(--muted);font-weight:700",

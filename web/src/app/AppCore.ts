@@ -16,7 +16,7 @@ function initialState() {
     ...emptyDomain(),
     session: null, mode: "loading", authMode: "login", authError: "", authInfo: "", masterError: "",
     masterAuthed: false, tab: "home", recTab: "authors", filters: ["all"], q: "", projectId: null,
-    projFilter: "", selAuthors: [], roleChoice: {}, sheet: null, draft: {}, toast: "",
+    projFilter: "", selAuthors: [], selContractors: [], recView: "card", apTab: "in", apView: "card", roleChoice: {}, sheet: null, draft: {}, toast: "",
     theme: "light", lang: "tr", vw: typeof window === "undefined" ? 1200 : window.innerWidth,
     mSection: "kimlik", projView: "card", notifOpen: false,
     remember: false, profileMenuOpen: false, filterMenuOpen: false, fileQ: "",
@@ -24,7 +24,7 @@ function initialState() {
     gen: null, genBusy: "", tplDraft: null, tplMode: "edit", tplDirty: false, edPop: null, edInTable: false, edImg: false,
     tplSide: "vars", tplSample: "", varQ: "", zoom: { gen: "fit", tpl: "fit" }, zoomLbl: {}, varOpen: { genel: true, proje: true },
     tbCols: { muellifler: ["sira", "adSoyad", "meslek", "tc", "telefon"], arsaSahipleri: ["sira", "ad", "tc", "hisse", "imza"] },
-    noticeAccepted: false, privacyNotice: "", undo: null, updateInfo: null, backups: [], audit: [], auditOk: null, dns: null, dnsChecks: [], smtp: null, totpSetup: null, masterTotpSetup: null, recoveryCodes: null, unreadMessages: 0, busy: "",
+    noticeAccepted: false, privacyNotice: "", undo: null, updateInfo: null, backups: [], audit: [], auditOk: null, dns: null, dnsChecks: [], smtp: null, totpSetup: null, masterTotpSetup: null, recoveryCodes: null, unreadMessages: 0, setupDone: null, busy: "",
   };
 }
 
@@ -318,12 +318,19 @@ export class AppCore extends React.Component<any, any> {
         setupToken: (f.sToken || "").trim(), companyName: f.sCompany || "", masterPassword: f.sMaster || "",
         adminName: f.sAdminName || "", adminEmail: f.sAdminEmail || "", adminPassword: f.sAdminPass || "",
       });
+      // Sihirbaz "Kurulum tamamlandı" özetini gösterir; girişe geçiş kullanıcının düğmesiyle.
+      this.setState({ authError: "", setupDone: { company: f.sCompany || "", adminName: f.sAdminName || "", adminEmail: f.sAdminEmail || "" } });
       this.fd = {};
-      this.setState({ authError: "", authInfo: tx("Kurulum tamamlandı. Yönetici hesabınızla giriş yapın."), mode: "auth", authMode: "login" });
-      await this.start();
+      return "ok";
     } catch (e) {
       this.setState({ authError: tx(e.status === 403 ? "Kurulum belirteci hatalı." : e.message) });
+      return e.status === 403 ? "token" : "error";
     }
+  }
+
+  async finishSetup() {
+    this.setState({ setupDone: null, authError: "", authInfo: tx("Kurulum tamamlandı. Yönetici hesabınızla giriş yapın."), mode: "auth", authMode: "login" });
+    await this.start();
   }
 
   async masterLogin() {

@@ -2,7 +2,7 @@
 // Belge şablonu düzenleyicisi: içerik alanları, seçim, tablo ve geçmiş işlemleri.
 import { tx, LOC } from "../i18n";
 import { SIZES, FONTS } from "../domain/constants";
-import { V, TABLE, PB_HTML, varLabel, SLOT_ZOOM } from "../documents/template";
+import { V, TABLE, PB_HTML, varLabel, SLOT_ZOOM, CHIP_CSS } from "../documents/template";
 import { cleanHtml } from "../documents/sanitize";
 import { AppCore } from "./AppCore";
 
@@ -50,7 +50,8 @@ export class EditorController extends AppCore {
     });
   }
   relabel(root) {
-    root.querySelectorAll("[data-v]").forEach(n => { n.textContent = varLabel(n.getAttribute("data-v")); n.setAttribute("contenteditable", "false"); });
+    // Eski şablonlardaki çipler sabit yazı tipi taşıyordu; çip artık çevresinin yazı tipini alır.
+    root.querySelectorAll("[data-v]").forEach(n => { n.textContent = varLabel(n.getAttribute("data-v")); n.setAttribute("contenteditable", "false"); n.setAttribute("style", CHIP_CSS); });
     root.querySelectorAll("[data-pb]").forEach(n => n.setAttribute("contenteditable", "false"));
   }
   syncZones(silent, typing) {

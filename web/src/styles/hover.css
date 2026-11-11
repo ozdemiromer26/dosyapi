@@ -4,7 +4,7 @@
 .hv3:hover{background:var(--tint) !important}
 [data-stuck],[data-stuck]>div:first-child{border-radius:0 !important}
 /* Belge düzenleyicide şablonun sabit mavi yer tutucuları şirket rengiyle gösterilir (kağıt hep beyaz). */
-[data-doc-edit] [data-v]{background:color-mix(in oklab,var(--pri,#2a3180) 10%,#fff) !important;color:var(--pri,#2a3180) !important;border-color:color-mix(in oklab,var(--pri,#2a3180) 28%,#fff) !important}
+[data-doc-edit] [data-v]{font:inherit !important;background:color-mix(in oklab,var(--pri,#2a3180) 10%,#fff) !important;color:var(--pri,#2a3180) !important;border-color:color-mix(in oklab,var(--pri,#2a3180) 28%,#fff) !important}
 [data-doc-edit] [data-repeat]{outline-color:color-mix(in oklab,var(--pri,#2a3180) 55%,#fff) !important}
 [data-doc-edit] tr[data-repeat]{background:color-mix(in oklab,var(--pri,#2a3180) 8%,#fff) !important}
 [data-doc-edit] [style*="solid #2a3180"]{border-bottom-color:var(--pri,#2a3180) !important}

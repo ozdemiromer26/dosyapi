@@ -199,6 +199,13 @@ pub trait PendingRepo: Send + Sync {
 }
 
 #[async_trait]
+pub trait OutcomeRepo: Send + Sync {
+    async fn insert(&self, outcome: &RequestOutcome) -> AppResult<()>;
+    /// Kullanıcının en yeni `limit` sonuçlanmış talebi.
+    async fn list_for(&self, user_id: &str, limit: i64) -> AppResult<Vec<RequestOutcome>>;
+}
+
+#[async_trait]
 pub trait HistoryRepo: Send + Sync {
     async fn list(&self, limit: i64) -> AppResult<Vec<HistoryEntry>>;
     async fn insert(&self, entry: &HistoryEntry) -> AppResult<()>;

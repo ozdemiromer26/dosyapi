@@ -47,7 +47,7 @@ export function buildSheets(c: Ctx): () => Vals {
         payload.done = payload.status === "iskan";
         const miss = [["name", tx("İnşaat adı")], ["contractorId", tx("Müteahhit")], ["mahalle", tx("Mahalle")], ["street", tx("Cadde / sokak")], ["ada", tx("Ada no")], ["parsel", tx("Parsel no")], ["status", tx("Proje durumu")]].filter(x => !String(payload[x[0]] || "").trim());
         if (miss.length) return app.toast(tx("Zorunlu alanlar eksik: ") + miss.map(x => x[1]).join(", ") + tx(". (Yalnızca not alanı isteğe bağlıdır.)"));
-        const shares = shareTotal(payload.owners);
+        const shares = payload.owners.length ? shareTotal(payload.owners) : { ok: true, text: "", invalid: [] };
         if (!shares.ok) return app.toast(shares.text ? tx("Hisselerin toplamı 1/1 olmalı; şu an ") + shares.text + "." : tx("Geçersiz hisse: ") + shares.invalid.join(", "));
         app.commit(d.id ? "update" : "create", "project", payload, (d.id ? tx("Proje düzenleme") : tx("Yeni proje")) + ": " + payload.name);
       },
@@ -75,10 +75,11 @@ export function buildSheets(c: Ctx): () => Vals {
         if (!payload.title.trim()) return app.toast(tx("Firma unvanı zorunlu."));
         app.commit(d.id ? "update" : "create", "contractor", payload, (d.id ? tx("Müteahhit düzenleme") : tx("Yeni müteahhit")) + ": " + payload.title);
       },
-      confirmText: sh.entity === "template" && sh.obj ? "“" + sh.obj.name + tx("” şablonu silinecek. Birkaç saniye içinde geri alabilirsiniz.") : sh.obj ? "“" + (sh.obj.name || sh.obj.title || (sh.obj.first + " " + sh.obj.last)) + tx("” kaydı silinecek.") + (sh.entity === "user" ? tx(" Kullanıcı erişimi kalıcı olarak kapanır.") : (sh.entity === "project" ? (directProjects ? tx(" Birkaç saniye içinde geri alabilirsiniz.") : tx(" Talep onaya gönderilecek.")) : (directRecords ? tx(" Birkaç saniye içinde geri alabilirsiniz.") : tx(" Talep onaya gönderilecek.")))) : "",
-      confirmCta: sh.entity === "template" ? tx("Şablonu sil") : sh.entity === "user" ? tx("Kullanıcıyı sil") : ((sh.entity === "project" ? directProjects : directRecords) ? tx("Sil") : tx("Onaya gönder")),
+      confirmText: sh.action === "withdraw" && sh.obj ? "“" + sh.obj.title + tx("” talebi geri çekilecek; değişiklik uygulanmaz.") : sh.entity === "template" && sh.obj ? "“" + sh.obj.name + tx("” şablonu silinecek. Birkaç saniye içinde geri alabilirsiniz.") : sh.obj ? "“" + (sh.obj.name || sh.obj.title || (sh.obj.first + " " + sh.obj.last)) + tx("” kaydı silinecek.") + (sh.entity === "user" ? tx(" Kullanıcı erişimi kalıcı olarak kapanır.") : (sh.entity === "project" ? (directProjects ? tx(" Birkaç saniye içinde geri alabilirsiniz.") : tx(" Talep onaya gönderilecek.")) : (directRecords ? tx(" Birkaç saniye içinde geri alabilirsiniz.") : tx(" Talep onaya gönderilecek.")))) : "",
+      confirmCta: sh.action === "withdraw" ? tx("Talebi geri çek") : sh.entity === "template" ? tx("Şablonu sil") : sh.entity === "user" ? tx("Kullanıcıyı sil") : ((sh.entity === "project" ? directProjects : directRecords) ? tx("Sil") : tx("Onaya gönder")),
       confirmAction: () => {
         const o = sh.obj;
+        if (sh.action === "withdraw") { app.setState({ sheet: null }); app.act(() => app.api.post("/approvals/" + o.id + "/withdraw", {}), tx("Talep geri çekildi.")); return; }
         if (sh.entity === "contractor" && s.projects.some(p => p.contractorId === o.id)) { app.setState({ sheet: null }); return app.toast(tx("Bu müteahhit projelerde kullanılıyor; önce projelerden kaldırın.")); }
         const paths = { template: "/templates/", project: "/projects/", author: "/authors/", contractor: "/contractors/" };
         const lists = { template: "templates", project: "projects", author: "authors", contractor: "contractors" };

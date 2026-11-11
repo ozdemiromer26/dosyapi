@@ -734,6 +734,23 @@ pub struct Pending {
     pub file_name: Option<String>,
 }
 
+/// Sonuçlanmış talep: talep eden "Gönderilen onaylar"da durumunu ve karar vereni görür.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RequestOutcome {
+    pub id: Id,
+    #[serde(skip)]
+    pub by_id: Id,
+    pub kind: PendingKind,
+    pub entity: Entity,
+    pub title: String,
+    pub detail: String,
+    pub sent_at: Timestamp,
+    pub decided_at: Timestamp,
+    pub decider: String,
+    pub approved: bool,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryEntry {

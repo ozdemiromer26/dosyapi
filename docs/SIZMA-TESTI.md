@@ -7,8 +7,8 @@ bağımsız denetimin yerini tutmaz.
 
 | Sınama | Araç | Sonuç |
 | --- | --- | --- |
-| Saldırı senaryoları | `security/pentest.py` | 298/298 geçti (hata ayıklama derlemesi) |
-| Sürüm derlemesi, gerçek Argon2id | `pentest.py --timing` | 307/307 geçti |
+| Saldırı senaryoları | `security/pentest.py` | 308/308 geçti (hata ayıklama derlemesi) |
+| Sürüm derlemesi, gerçek Argon2id | `pentest.py --timing` | 317/317 geçti |
 | Kullanıcı numaralandırma süresi | `pentest.py --timing` | Olmayan hesap 72 ms, var olan hesap 72 ms |
 | Güncelleme saldırıları | `security/update_test.py` | 18/18 geçti |
 | SQL enjeksiyonu taraması | sqlmap 1.10 (seviye 3, risk 2) | İki turda toplam 8 farklı uç noktada enjeksiyon bulunmadı |
@@ -39,6 +39,7 @@ içinde görünür, derlenmez. `cargo tree -i rsa` boş döner.
 | Proje ayrıntısı | Toplamı 1/1 olmayan ya da kesir olmayan hisse; fotoğraf olarak SVG, HTML, çalıştırılabilir ve büyük dosya; onaylı ve salt okuma rolüyle fotoğraf değişimi; CSRF; diskte düz fotoğraf; proje silinince fotoğrafın kalması; kişisel notu başka kullanıcının okuması, bootstrap'a sızması, CSRF'siz ya da oturumsuz erişim, aşırı uzun ve denetim karakterli not, diskte düz not, proje silinince notun kalması |
 | Görev ve iki adımlı doğrulama | Başkasının ya da atananın görevi düzenlemesi, düzenlemede üst kademeye atama, takvimde olmayan tarih (2030-13-45), bilinmeyen alan, CSRF; iki adımlı doğrulamayı yanlış kodla açma, açıkken kodsuz giriş, yanlış şifreyle ya da CSRF'siz kapatma, kapattıktan sonra normal giriş; aynı TOTP kodunu ikinci kez kullanma (kullanıcı ve master), kurulum kodunu girişte tekrar kullanma, kurtarma kodunun ikinci kullanımı, başka hesabın kurtarma kodu, yenilemeden sonra eski kod, açıkken şifresiz yeniden kurulum, diskte düz kurtarma kodu. 2FA senaryoları IP giriş sınırını paylaşmamak için ayrı bir test sunucusunda koşar. |
 | Mesajlaşma | Üçüncü kişinin konuşmayı okuması (IDOR), listesine ya da bootstrap'ına sızma, oturumsuz okuma, CSRF'siz gönderim, kendine ve olmayan kişiye gönderim, SQL enjeksiyonlu alıcı kimliği, boş/aşırı uzun/denetim karakterli mesaj, gönderen alanını taklit, geçersiz sayfa parametresi, diskte düz mesaj, toplu gönderim (oran sınırı) |
+| Onaylar | Başkasının ya da karar verenin talebi geri çekmesi (IDOR), CSRF'siz geri çekme, aynı talebin ikinci kez geri çekilmesi, geri çekilen değişikliğin uygulanmaması ve kilidin kalkması; sonuçlanan talebin yalnızca talep edene görünmesi ve kullanıcı kimliği sızdırmaması |
 | Toplu atama | Rol, durum ve kimlik alanlarını isteğe ekleme |
 | CSRF | Belirteçsiz istek, başka oturumun belirteci, yabancı köken, giriş CSRF'si, CORS |
 | Enjeksiyon | SQL yükleri, kalıcı XSS, CSS enjeksiyonu, e-posta başlık enjeksiyonu, denetim karakterleri, derin JSON, büyük gövde |

@@ -499,6 +499,61 @@ impl PendingRepo for Db {
 }
 
 #[async_trait]
+impl OutcomeRepo for Db {
+    async fn insert(&self, o: &RequestOutcome) -> AppResult<()> {
+        sqlx::query(
+            "INSERT INTO request_outcomes (id, by_id, kind, entity, title, detail, sent_at, decided_at, decider, approved)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&o.id)
+        .bind(&o.by_id)
+        .bind(o.kind.as_str())
+        .bind(o.entity.as_str())
+        .bind(&o.title)
+        .bind(&o.detail)
+        .bind(o.sent_at)
+        .bind(o.decided_at)
+        .bind(&o.decider)
+        .bind(o.approved)
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
+        Ok(())
+    }
+
+    async fn list_for(&self, user_id: &str, limit: i64) -> AppResult<Vec<RequestOutcome>> {
+        let rows = sqlx::query(
+            "SELECT * FROM request_outcomes WHERE by_id = ? ORDER BY decided_at DESC, id LIMIT ?",
+        )
+        .bind(user_id)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db_err)?;
+        rows.iter()
+            .map(|r| {
+                let kind: String = r.try_get("kind").map_err(db_err)?;
+                let entity: String = r.try_get("entity").map_err(db_err)?;
+                Ok(RequestOutcome {
+                    id: r.try_get("id").map_err(db_err)?,
+                    by_id: r.try_get("by_id").map_err(db_err)?,
+                    kind: PendingKind::parse(&kind)
+                        .ok_or_else(|| AppError::internal("geçersiz talep türü"))?,
+                    entity: Entity::parse(&entity)
+                        .ok_or_else(|| AppError::internal("geçersiz varlık"))?,
+                    title: r.try_get("title").map_err(db_err)?,
+                    detail: r.try_get("detail").map_err(db_err)?,
+                    sent_at: r.try_get("sent_at").map_err(db_err)?,
+                    decided_at: r.try_get("decided_at").map_err(db_err)?,
+                    decider: r.try_get("decider").map_err(db_err)?,
+                    approved: r.try_get("approved").map_err(db_err)?,
+                })
+            })
+            .collect()
+    }
+}
+
+#[async_trait]
 impl HistoryRepo for Db {
     async fn list(&self, limit: i64) -> AppResult<Vec<HistoryEntry>> {
         let rows = sqlx::query("SELECT * FROM history ORDER BY at DESC LIMIT ?")

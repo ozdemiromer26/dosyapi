@@ -48,17 +48,15 @@ export function buildShell(c: Ctx): () => Vals {
     };
     const navItems = navDefs.filter(n => n[2]).map(mkNav);
     const navNoProf = navItems.filter(n => n.id !== "profile"), profOn = s.tab === "profile";
-    // Alt çubukta 4 sekme + Daha fazla + Profil; Mesajlar burada görünür kalsın diye 4.
+    // Alt çubukta 4 sekme + Profil. "Daha fazla" kalktı: Profil, profil önizlemesi ve
+    // kalan sayfaları (Kayıtlar, Onaylar…) içeren menüyü açar; rozeti bu sayfaların toplamıdır.
     const BOTTOM = 4;
     const moreBadge = navNoProf.slice(BOTTOM).reduce((n, x) => n + (Number(x.badgeText) || 0), 0);
+    const moreOn = profOn || navNoProf.slice(BOTTOM).some(n => n.id === s.tab);
     const bottomNav = navNoProf.slice(0, BOTTOM).concat(<any>[{
-      id: "more", label: tx("Daha fazla"), icon: ICONS.more(), hasBadge: moreBadge > 0, badgeText: String(moreBadge),
-      botStyle: botStyle(navNoProf.slice(BOTTOM).some(n => n.id === s.tab)),
-      onClick: () => app.setState({ sheet: { type: "menu" }, notifOpen: false }),
-    }, {
-      id: "profile", label: tx("Profil"), botStyle: botStyle(profOn),
-      icon: el("span", { style: { width: 24, height: 24, borderRadius: "50%", flex: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, background: profOn ? "var(--pri,#2a3180)" : "var(--soft3)", color: profOn ? "#fff" : "var(--brandink)" } }, me ? ini(me.name) : ""),
-      onClick: () => app.setState({ tab: "profile", notifOpen: false, sheet: null, profileMenuOpen: false }),
+      id: "profile", label: tx("Profil"), botStyle: botStyle(moreOn), hasBadge: moreBadge > 0, badgeText: String(moreBadge),
+      icon: el("span", { style: { width: 24, height: 24, borderRadius: "50%", flex: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, background: moreOn ? "var(--pri,#2a3180)" : "var(--soft3)", color: moreOn ? "#fff" : "var(--brandink)" } }, me ? ini(me.name) : ""),
+      onClick: () => app.setState({ sheet: { type: "menu" }, notifOpen: false, profileMenuOpen: false }),
     }]);
     const menuItems = navNoProf.slice(BOTTOM);
 
@@ -68,7 +66,7 @@ export function buildShell(c: Ctx): () => Vals {
     const statCard = (label, value, onClick, accent?: "pri" | "alert") => ({
       label, value, onClick,
       cardStyle: "width:100%;text-align:left;cursor:pointer;border-radius:13px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.05);" + (accent === "pri" ? "background:var(--pri,#2a3180);border:1px solid var(--pri,#2a3180)" : accent === "alert" ? "background:var(--err);border:1px solid var(--errtext)" : "background:var(--card);border:1px solid var(--line)"),
-      labelStyle: "font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:" + (accent === "pri" ? "var(--tintline)" : accent === "alert" ? "var(--errtext)" : "var(--muted)"),
+      labelStyle: "font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:" + (accent === "pri" ? "rgba(255,255,255,.82)" : accent === "alert" ? "var(--errtext)" : "var(--muted)"),
       valueStyle: "font-size:26px;font-weight:800;line-height:1;margin-top:6px;color:" + (accent === "pri" ? "#fff" : accent === "alert" ? "var(--errtext)" : "var(--ink)"),
     });
     Object.assign(c, { sh, sheetTitles, isDesktop, contentW, cardCols, listWide, LIST_COLS, domains, domOf, domainConflicts, domainsTxt, decidable, navDefs, sideStyle, botStyle, mkNav, navItems, navNoProf, profOn, bottomNav, menuItems, statCard });
@@ -94,6 +92,7 @@ export function buildShell(c: Ctx): () => Vals {
       themeIcon: s.theme === "dark" ? SUN() : MOON(),
       brandMarkXs: DMARK(16), brandMarkLight: DMARK_LIGHT(24), brandMarkAbout: DMARK_LIGHT(46),
       brandTap: () => { const now = Date.now(); app._bt = (app._bt || []).filter(t => now - t < 2000).concat(now); if (app._bt.length >= 5) { app._bt = []; app.fd = {}; app.setState({ mode: "master", masterError: "" }); } },
+      bellIcon: ICONS.bell(), profileIcon: ICONS.profile(),
       logoutIcon: ic(["path", { d: "M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" }], ["path", { d: "M10 16l-4-4 4-4" }], L(6, 12, 16, 12)),
       themeIconBtnStyle: "width:36px;height:36px;flex:none;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer",
       themeIconBtnStyleM: "width:36px;height:36px;flex:none;border-radius:9px;border:1px solid var(--mline2);background:var(--mbtn);color:var(--mtext);display:flex;align-items:center;justify-content:center;cursor:pointer",
@@ -110,7 +109,8 @@ export function buildShell(c: Ctx): () => Vals {
       toggleProfileMenu: () => app.setState(st => ({ profileMenuOpen: !st.profileMenuOpen, notifOpen: false })),
       myOpenTaskLabel: myTasks.filter(t => !t.done).length + tx(" açık görev"),
       appShellStyle: isDesktop ? "flex:1;display:flex;align-items:flex-start" : "flex:1;display:flex;flex-direction:column",
-      contentStyle: "flex:1;width:100%;margin:0 auto;padding:20px 16px " + (isDesktop ? "70px" : "96px") + ";max-width:1440px",
+      // Mesajlar ekranı tam yükseklik kullanır: alt boşluk masaüstünde 16px, mobilde alt çubuğun hemen üstü.
+      contentStyle: "flex:1;width:100%;margin:0 auto;padding:20px 16px " + (s.tab === "messages" ? (isDesktop ? "16px" : "80px") : (isDesktop ? "70px" : "96px")) + ";max-width:1440px",
       cardGridStyle: "display:grid;grid-template-columns:repeat(" + cardCols + ",minmax(0,1fr));gap:13px;align-items:stretch",
       listWide, listNarrow: !listWide,
       listBoxStyle: "display:grid;" + LIST_COLS + "background:var(--card);border:1px solid var(--line);border-radius:13px;overflow:hidden",

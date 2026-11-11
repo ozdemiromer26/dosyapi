@@ -41,7 +41,11 @@ export class DocumentController extends EditorController {
   genSubject(g) {
     const s = this.state;
     if (g.kind === "project") return (s.projects.find(p => p.id === g.projectId) || {}).name || "";
-    if (g.kind === "contractor") return (s.contractors.find(c => c.id === g.contractorId) || {}).title || "";
+    if (g.kind === "contractor") {
+      const ids = g.ids || (g.contractorId ? [g.contractorId] : []);
+      const one = ids.length === 1 ? s.contractors.find(c => c.id === ids[0]) : null;
+      return one ? one.title : ids.length + tx(" müteahhit");
+    }
     const ids = g.ids || [], pr = g.projectId && s.projects.find(p => p.id === g.projectId);
     const one = ids.length === 1 ? s.authors.find(a => a.id === ids[0]) : null;
     return one ? one.first + " " + one.last : ids.length + tx(" müellif") + (pr ? " · " + pr.name : "");
@@ -49,10 +53,14 @@ export class DocumentController extends EditorController {
   buildCtx(kind, d) {
     const s = this.state; d = d || {};
     const now = new Date(), A = (id) => s.authors.find(a => a.id === id);
-    let project = null, authors = [], contractor = null;
+    let project = null, authors = [], contractor = null, contractors = [];
     if (kind === "project") { project = s.projects.find(p => p.id === d.projectId) || null; authors = project ? (project.authorIds || []).map(A).filter(Boolean) : []; }
     if (kind === "authors") { authors = (d.ids || []).map(A).filter(Boolean); project = d.projectId ? (s.projects.find(p => p.id === d.projectId) || null) : null; }
-    if (kind === "contractor") contractor = s.contractors.find(c => c.id === d.contractorId) || null;
+    if (kind === "contractor") {
+      // Çoklu seçim: ilk müteahhit tekil değişkenleri, tamamı "Müteahhitler" listesini doldurur.
+      contractors = (d.ids || (d.contractorId ? [d.contractorId] : [])).map(id => s.contractors.find(c => c.id === id)).filter(Boolean);
+      contractor = contractors[0] || null;
+    }
     if (project && !contractor) contractor = s.contractors.find(c => c.id === project.contractorId) || { title: project.contractor };
     const pAuthors = project ? (project.authorIds || []).map(A).filter(Boolean) : authors;
     const mimar = pAuthors.find(a => /mimar/i.test(a.job || "")) || null;
@@ -76,6 +84,7 @@ export class DocumentController extends EditorController {
     put("vekil", { ad: proxy.name || "", tc: proxy.tc || "", telefon: proxy.phone || "", adres: proxy.address || "" });
     return { brand: s.palette && s.palette.pri, vals: v, lists: {
       muellifler: authors.map((a, i) => ({ sira: i + 1, ...au(a) })),
+      muteahhitler: contractors.map((x, i) => ({ sira: i + 1, unvan: x.title || "", yetkili: x.owner || "", yetkiNo: x.licence || "", sinif: x.rank || "", adres: x.address || "" })),
       arsaSahipleri: owners.map((o, i) => ({ sira: i + 1, ad: o.name || "", tc: o.tc || "", telefon: o.phone || "", adres: o.address || "", hisse: o.share || "", imza: "" })),
     } };
   }

@@ -24,7 +24,7 @@ export function HomeScreen({ v }: { v: Vals }) {
               <div style={st.card}>
                 <div style={css("display:flex;align-items:baseline;justify-content:space-between")}>
                   <div style={st.title14}>{v.T.banaAtananGorevler}</div>
-                  <button onClick={v.goTasks} style={css("border:none;background:none;color:var(--acc,#1d72b8);font-size:12px;font-weight:700;cursor:pointer;padding:0")}>{v.T.tumu}</button>
+                  <button onClick={v.goTasks} style={css("border:none;background:none;color:var(--brandink);font-size:12px;font-weight:700;cursor:pointer;padding:0")}>{v.T.tumu}</button>
                 </div>
                 {(v.myTasksPreview || []).map((t: any, i19: number) => (<React.Fragment key={t?.id ?? t?.key ?? i19}>
                   <div style={css("display:flex;align-items:center;gap:10px;background:var(--soft2);border-radius:10px;padding:10px 11px")}>
@@ -44,7 +44,7 @@ export function HomeScreen({ v }: { v: Vals }) {
               <div style={st.card}>
                 <div style={css("display:flex;align-items:baseline;justify-content:space-between")}>
                   <div style={st.title14}>{v.T.sonProjeler}</div>
-                  <button onClick={v.goProjects} style={css("border:none;background:none;color:var(--acc,#1d72b8);font-size:12px;font-weight:700;cursor:pointer;padding:0")}>{v.T.tumu}</button>
+                  <button onClick={v.goProjects} style={css("border:none;background:none;color:var(--brandink);font-size:12px;font-weight:700;cursor:pointer;padding:0")}>{v.T.tumu}</button>
                 </div>
                 {(v.recentProjects || []).map((p: any, i20: number) => (<React.Fragment key={p?.id ?? p?.key ?? i20}>
                   <div onClick={p.onOpen} style={css("display:flex;align-items:center;gap:10px;background:var(--soft2);border-radius:10px;padding:11px;cursor:pointer")}>
@@ -60,7 +60,7 @@ export function HomeScreen({ v }: { v: Vals }) {
               <div style={st.card}>
                 <div style={css("display:flex;align-items:baseline;justify-content:space-between")}>
                   <div style={st.title14}>{v.T.bekleyenBelgeler2}</div>
-                  <button onClick={v.goProjects} style={css("border:none;background:none;color:var(--acc,#1d72b8);font-size:12px;font-weight:700;cursor:pointer;padding:0")}>{v.T.projeler2}</button>
+                  <button onClick={v.goProjects} style={css("border:none;background:none;color:var(--brandink);font-size:12px;font-weight:700;cursor:pointer;padding:0")}>{v.T.projeler2}</button>
                 </div>
                 {(v.docPendingList || []).map((p: any, i21: number) => (<React.Fragment key={p?.id ?? p?.key ?? i21}>
                   <div onClick={p.onOpen} style={css("display:flex;align-items:center;gap:10px;background:var(--err);border-radius:10px;padding:11px;cursor:pointer")}>

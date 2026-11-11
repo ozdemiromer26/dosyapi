@@ -275,6 +275,7 @@ pub async fn build(
         approvals: ApprovalService {
             pendings: db.clone(),
             history: db.clone(),
+            outcomes: db.clone(),
             users: db.clone(),
             roles: db.clone(),
             sessions: db.clone(),

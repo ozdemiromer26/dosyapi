@@ -20,7 +20,7 @@ export function AboutCard({ v, master }: { v: Vals; master?: boolean }) {
       <div style={css("display:flex;align-items:center;gap:16px;padding-bottom:18px")}>
         <div style={css("width:72px;height:72px;border-radius:18px;background:#FFFFFF;border:1px solid " + c("line") + ";display:flex;align-items:center;justify-content:center;flex:none")}>{v.brandMarkAbout}</div>
         <div style={css("min-width:0")}>
-          <div style={css("font-size:22px;font-weight:800;letter-spacing:-.4px;color:" + (master ? "var(--mink)" : "var(--ink)"))}>dos<span style={css(master ? "color:var(--logo-b)" : "color:#1E4FD8")}>yapı</span></div>
+          <div className="wm" style={css("font-size:22px;color:" + (master ? "var(--mink)" : "var(--ink)"))}>dos<span style={css(master ? "color:var(--logo-b)" : "color:#1E4FD8")}>yapı</span></div>
           <div style={css("font-size:13px;color:" + (master ? "var(--mmuted)" : "var(--muted)") + ";font-weight:600;margin-top:2px")}>{T.dosyapiSlogan}</div>
         </div>
       </div>

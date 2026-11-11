@@ -46,6 +46,7 @@ export function mapBootstrap(data: any) {
     meTotp: data.me.totpEnabled,
     meRecoveryLeft: data.me.totpRecoveryLeft || 0,
     unreadMessages: data.unreadMessages || 0,
+    sentOutcomes: (data.sentOutcomes || []).map((o: any) => ({ ...o, when: fmtStamp(o.sentAt), decided: fmtStamp(o.decidedAt) })),
     users: data.users,
     professions: data.professions.map((p: any) => p.name),
     profRequired: Object.fromEntries(data.professions.map((p: any) => [p.name, p.required])),
