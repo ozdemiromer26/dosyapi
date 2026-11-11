@@ -1,6 +1,7 @@
 //! HTTP katmanı: yalnızca taşıma. İş kuralı ve yetki kararı servislerdedir.
 
 pub mod error;
+pub mod events;
 pub mod extract;
 mod routes;
 pub mod security;
@@ -21,6 +22,7 @@ pub struct AppState {
     pub services: Arc<Services>,
     pub public_url: PublicUrl,
     pub trust_proxy: bool,
+    pub events: Arc<events::EventHub>,
 }
 
 impl AppState {
@@ -35,7 +37,10 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::master::router())
         .layer(DefaultBodyLimit::max(JSON_LIMIT))
         .layer(request_timeout())
-        .merge(routes::files::router());
+        .merge(routes::files::router())
+        // Canlı güncelleme akışı uzun ömürlüdür; süre sınırının dışında tutulur.
+        .route("/events", axum::routing::get(events::stream))
+        .layer(from_fn_with_state(state.clone(), events::notify_changes));
 
     Router::new()
         .nest("/api/v1", api)

@@ -360,7 +360,16 @@ impl AuthService {
     }
 
     pub async fn authenticate(&self, token: &str) -> AppResult<Authenticated> {
-        let token_hash = self.token_service.hash(token);
+        self.resolve(self.token_service.hash(token), true).await
+    }
+
+    /// Uzun süren bağlantılar (canlı güncelleme akışı) için oturumun hâlâ geçerli olup
+    /// olmadığını denetler. Oturumu tazelemez: açık bir sekme boşta kalma süresini uzatmaz.
+    pub async fn session_alive(&self, token_hash: &[u8]) -> bool {
+        self.resolve(token_hash.to_vec(), false).await.is_ok()
+    }
+
+    async fn resolve(&self, token_hash: Vec<u8>, touch: bool) -> AppResult<Authenticated> {
         let session = self
             .sessions
             .find(&token_hash)
@@ -389,7 +398,7 @@ impl AuthService {
             .get(role_id)
             .await?
             .ok_or(AppError::Unauthorized)?;
-        if now - session.last_seen_at >= 60 {
+        if touch && now - session.last_seen_at >= 60 {
             self.sessions.touch(&token_hash, now).await?;
         }
         Ok(Authenticated {

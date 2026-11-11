@@ -112,6 +112,17 @@ export function AppShell({ v }: { v: Vals }) {
             {v.notifOpen ? (<>
               <div style={css((v.isDesktop ? "position:absolute;top:42px;right:0;width:320px;max-width:86vw;" : "position:absolute;top:56px;right:12px;left:12px;") + "background:var(--card);border:1px solid var(--line);border-radius:13px;box-shadow:0 14px 34px rgba(0,0,0,.16);padding:12px;display:flex;flex-direction:column;gap:10px;z-index:40;animation:popIn .16s ease")}>
                 {v.noNotif ? <div style={st.note}>{v.T.yeniBildirimYok}</div> : null}
+                {v.hasNotifLate ? (
+                  <div style={st.stack6}>
+                    <div style={css("font-size:11px;font-weight:800;letter-spacing:.6px;color:var(--errtext)")}>{v.T.sureGecenGorevler}</div>
+                    {(v.notifLate || []).map((n: any) => (
+                      <button key={n.id} onClick={v.goTasks} style={css("text-align:left;border:1px solid var(--errline);background:var(--err);border-radius:9px;padding:9px 10px;cursor:pointer;display:flex;flex-direction:column;gap:2px")}>
+                        <span style={css("font-size:13px;font-weight:700;color:var(--ink)")}>{n.title}</span>
+                        <span style={css("font-size:11px;font-weight:700;color:var(--errtext)")}>{n.meta}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 {v.hasNotifApprovals ? (<>
                   <div style={st.stack6}>
                     <div style={st.overline}>{v.T.bekleyenOnaylar}</div>

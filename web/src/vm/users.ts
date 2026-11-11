@@ -6,7 +6,7 @@ import { tx } from "../i18n";
 
 export function buildUsers(c: Ctx): () => Vals {
   const app = c.app;
-  const { lvl, me, s } = c; /*TOP*/
+  const { lvl, me, s, top } = c; /*TOP*/
     const assignable = app.manageableRoles();
     const manageUsers = s.users.filter(u => u.id !== (me && me.id)).map(u => {
       const r = app.roleOf(u);

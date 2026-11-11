@@ -1,7 +1,7 @@
 // Görünüm modeli: kurulum, DNS, e-posta, güncelleme, yedek ve güvenlik panelleri.
 import type { Ctx, Vals } from "./types";
 import { LOC, tx } from "../i18n";
-import { DMARK, ic } from "../ui/icons";
+import { DMARK } from "../ui/icons";
 import { fmtBytes, fmtStamp } from "../api/mappers";
 import { TABLE_PRESETS, customTable, presetTable } from "../documents/presets";
 import { boardHtml } from "../documents/board";

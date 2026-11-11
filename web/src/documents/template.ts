@@ -28,19 +28,18 @@ export const varLabel = (key) => {
 };
 export const CHIP_CSS = "background:#e9eefb;color:#2a3180;border:1px solid #c3cdf0;border-radius:4px;padding:0 4px;box-decoration-break:clone;-webkit-box-decoration-break:clone;font:inherit";
 export const REP_DIV = "outline:1.5px dashed #8a96e0;outline-offset:3px;margin:8px 0";
-export const REP_TR = "background:#eef1fc";
 export const CELL = "border:1px solid #444;padding:5px 7px;vertical-align:top;text-align:left";
 export const TH = CELL + ";background:#efefef;font-weight:700";
 export const PB_HTML = '<div data-pb="1" contenteditable="false" style="margin:18px 0;border-top:1.5px dashed #9aa3c7;height:0;text-align:center;line-height:0"><span style="background:#fff;padding:0 6px;font-family:Arial,sans-serif;font-size:8.5px;font-weight:700;letter-spacing:.6px;color:#6b74a0">SAYFA SONU</span></div>';
 export const V = (key) => '<span data-v="' + key + '" contenteditable="false" style="' + CHIP_CSS + '">' + esc(varLabel(key)) + "</span>";
 export const KV = (rows) => '<table style="width:100%;border-collapse:collapse;margin:8px 0"><tbody>' + rows.map(r => '<tr><td style="' + CELL + ';width:34%;background:#f6f6f6;font-weight:700">' + r[0] + '</td><td style="' + CELL + '">' + r[1] + "</td></tr>").join("") + "</tbody></table>";
+export const REP_TR = "background:#eef1fc";
 export const LISTTBL = (list, cols) => '<table style="width:100%;border-collapse:collapse;margin:8px 0"><thead><tr>' + cols.map(c => '<th style="' + TH + '">' + esc(c === "imza" ? tx("İmza") : tx(LISTS[list].fields.find(f => f[0] === c)[1])) + "</th>").join("") + '</tr></thead><tbody><tr data-repeat="' + list + '" style="' + REP_TR + '">' + cols.map(c => c === "imza" ? '<td style="' + CELL + ';height:12mm;width:22%"></td>' : '<td style="' + CELL + '">' + V(list + "[]." + c) + "</td>").join("") + "</tr></tbody></table>";
 export const TABLE = (r, c) => '<table style="width:100%;border-collapse:collapse;margin:6px 0"><tbody>' + Array.from({ length: r }, () => "<tr>" + Array.from({ length: c }, () => '<td style="' + CELL + '"><br></td>').join("") + "</tr>").join("") + "</tbody></table>";
 export const SIG = (pos, label) => pos === "two"
   ? '<table data-sig="1" style="width:100%;margin-top:30px;border-collapse:collapse"><tbody><tr><td style="width:44%;height:15mm;border-bottom:1px solid #222"></td><td></td><td style="width:44%;border-bottom:1px solid #222"></td></tr><tr><td style="text-align:center;padding-top:5px">' + label + '</td><td></td><td style="text-align:center;padding-top:5px">' + label + "</td></tr></tbody></table>"
   : '<table data-sig="1" style="margin:30px ' + (pos === "left" ? "auto 0 0" : "0 0 auto") + ';border-collapse:collapse"><tbody><tr><td style="width:62mm;height:15mm;border-bottom:1px solid #222"></td></tr><tr><td style="text-align:center;padding-top:5px">' + label + "</td></tr></tbody></table>";
 export const HDR = () => '<table style="width:100%;border-collapse:collapse"><tbody><tr><td style="padding:0 0 6px;border-bottom:2px solid #2a3180;font-size:13pt;font-weight:700">' + V("genel.sirket") + '</td><td style="padding:0 0 6px;border-bottom:2px solid #2a3180;text-align:right;font-size:9pt;color:#555">' + V("genel.belgeNo") + "<br>" + V("genel.tarih") + "</td></tr></tbody></table>";
-export const FTR = () => '<p style="margin:0;font-size:8pt;color:#666;text-align:center">' + V("genel.sirket") + " · Bu belge sistem tarafından oluşturulmuştur.</p>";
 export const TPL_BASE = () => ({ size: "A4", orient: "portrait", margins: { t: 20, r: 20, b: 20, l: 22 }, font: FONTS[0][0], fontSize: 12, pageNo: true, pageNoPos: "right", updated: "" });
 export const blankTpl = () => ({ ...TPL_BASE(), id: uid(), name: tx("Yeni şablon"), contexts: ["project"], header: HDR(), body: "<p><br></p>", footer: "" });
 export const geom = (t) => {

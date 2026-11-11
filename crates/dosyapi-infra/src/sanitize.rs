@@ -239,6 +239,20 @@ mod tests {
     }
 
     #[test]
+    fn keeps_variable_chip_formatting() {
+        // Şablon düzenleyicisi seçili çipe boyut/renk verirken onu stilli bir <span> ile sarar.
+        let html = r#"<p><span style="font-size: 14pt; color: rgb(27, 107, 58); font-weight: 700;"><span data-v="proje.adi" contenteditable="false">Proje adı</span></span></p>"#;
+        let out = clean(html);
+        assert!(
+            out.contains("font-size")
+                && out.contains("rgb(27, 107, 58)")
+                && out.contains("font-weight")
+                && out.contains("data-v=\"proje.adi\""),
+            "{out}"
+        );
+    }
+
+    #[test]
     fn keeps_inline_images() {
         let out = clean(
             r#"<img src="data:image/png;base64,iVBOR=" alt="x"><img src="/api/v1/public/logo">"#,

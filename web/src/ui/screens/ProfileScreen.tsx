@@ -57,6 +57,9 @@ export function ProfileScreen({ v }: { v: Vals }) {
               <div style={st.card}>
                 <div style={st.title14}>{v.T.hesapSilmeTalebi}</div>
                 <div style={css("font-size:12px;color:var(--muted);font-weight:600;line-height:1.6")}>{v.deleteRequestNote}</div>
+                {v.deleteIsPending ? (
+                  <button onClick={v.goSentApprovals} style={css("height:40px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:9px;font-size:13px;font-weight:700;cursor:pointer")}>{v.T.talebiGoruntule}</button>
+                ) : null}
                 {v.canRequestDelete ? (<>
                   <button onClick={v.requestSelfDelete} style={css("height:40px;border:1px solid var(--errline);background:var(--err);color:var(--errtext);border-radius:9px;font-size:13px;font-weight:700;cursor:pointer")}>{v.T.hesabiminSilinmesiniTalepEt}</button>
                 </>) : null}

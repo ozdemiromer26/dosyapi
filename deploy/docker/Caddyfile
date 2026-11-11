@@ -1,6 +1,8 @@
 # Sertifika ilk istekte Let's Encrypt'ten otomatik alınır ve yenilenir.
 # Güvenlik başlıklarını uygulama kendisi gönderir; burada yalnızca yönlendirme var.
 {$DOSYAPI_DOMAIN} {
-	encode zstd gzip
+	# Canlı güncelleme akışı (SSE) sıkıştırılmaz; sıkıştırıcı olayları tamponlayıp geciktirebilir.
+	@compressible not path /api/v1/events
+	encode @compressible zstd gzip
 	reverse_proxy dosyapi:8080
 }

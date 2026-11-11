@@ -18,11 +18,17 @@ export function buildProfile(c: Ctx): () => Vals {
     ];
     Object.assign(c, { myPerms });
   return () => {
-    const { me } = c; /*LATE*/
+    // `top` açıkça alınmalı: alınmazsa tarayıcının global `window.top` nesnesi okunur (hep dolu).
+    const { me, pendings, top } = c; /*LATE*/
+    const deletePending = (pendings || []).find(p => p.kind === "user-delete" && p.mine);
     return {
       myPerms,
-      canRequestDelete: !top,
-      deleteRequestNote: top ? tx("Üst yönetici hesapları yalnızca sistem (master) panelinden silinebilir.") : tx("Talebiniz üst kademe yöneticilere iletilir; onaylanırsa hesabınız kalıcı olarak silinir."),
+      canRequestDelete: !top && !deletePending,
+      deleteRequestNote: top ? tx("Üst yönetici hesapları yalnızca sistem (master) panelinden silinebilir.")
+        : deletePending ? tx("Silme talebiniz üst kademe onayını bekliyor. Onaylar › Gönderilen sekmesinden geri çekebilirsiniz.")
+        : tx("Talebiniz üst kademe yöneticilere iletilir; onaylanırsa hesabınız kalıcı olarak silinir."),
+      deleteIsPending: !!deletePending,
+      goSentApprovals: () => app.setState({ tab: "approvals", apTab: "out" }),
       requestSelfDelete: () => app.act(() => app.api.post("/profile/delete-request", {}), tx("Hesap silme talebiniz iletildi.")),
       saveProfile: () => {
         const email = (app.fd.pEmail ?? me.email).trim().toLowerCase();
@@ -38,7 +44,7 @@ export function buildProfile(c: Ctx): () => Vals {
         app.act(() => app.api.post("/profile/password", body), tx("Şifre güncellendi."));
       },
       refPCurrent: app.mkRef("pCurrent"), refOldPass: app.mkRef("oldPass"), refNewPass: app.mkRef("newPass"), refNewPass2: app.mkRef("newPass2"),
-      refMOld: app.mkRef("mOld"), refMNew: app.mkRef("mNew"), refMNew2: app.mkRef("mNew2"),
+      refMNew: app.mkRef("mNew"), refMNew2: app.mkRef("mNew2"),
       refTTitle: app.mkRef("tTitle"), refTDue: app.mkRef("tDue"),
       refTodo: app.mkRef("todo"), refDtName: app.mkRef("dtName"), refProfName: app.mkRef("profName"),
       refRName: app.mkRef("rName"), refRLevel: app.mkRef("rLevel"),

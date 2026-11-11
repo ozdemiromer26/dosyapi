@@ -81,7 +81,6 @@ export function buildMaster(c: Ctx): () => Vals {
       domainConflictTitle: (s.domainConflicts || []).length + tx(" hesap listede olmayan alan adı kullanıyor — kısıtlama açılamaz."),
       domainActiveNote: s.domainLock && domains.length ? tx("Kısıtlama açık: yalnızca şu alan adlarıyla kayıt olunabilir: ") + domainsTxt : "",
       domainHint: s.domainLock && domains.length ? tx("Yalnızca şu uzantılı e-postalarla kayıt olunabilir: ") + domainsTxt : "",
-      openMaster: () => { app.fd = {}; app.setState({ mode: "master", masterError: "" }); },
       closeMaster: () => app.closeMaster(),
       masterLocked: !s.masterAuthed, masterAuthed: s.masterAuthed, masterError: s.masterError,
       masterLogin: () => app.masterLogin(),
@@ -98,7 +97,6 @@ export function buildMaster(c: Ctx): () => Vals {
         const f = e.target.files && e.target.files[0]; if (!f) return;
         app.act(() => app.api.raw("PUT", "/master/logo", f), tx("Logo yüklendi: ") + f.name);
       },
-      clearLogo: () => app.act(() => app.api.del("/master/logo")),
       logoLabel: s.company.logoUrl ? tx("Logoyu değiştir") : tx("Logo yükle (PNG/JPEG/WEBP)"),
       mRoles, mUsers,
       addRole: () => {
@@ -119,7 +117,6 @@ export function buildMaster(c: Ctx): () => Vals {
       projOptList: PROJ_OPTS.map(o => ({ id: o[0], label: tx(o[1]) })),
       fxExpandAll: () => app.setState({ fxOpen: fxAllKeys.reduce((o, k) => (o[k] = true, o), {}) }),
       fxCollapseAll: () => app.setState({ fxOpen: fxAllKeys.reduce((o, k) => (o[k] = false, o), {}) }),
-      saveSystem: () => {},
       checkUpdate: () => app.checkUpdate(),
       factoryReset: () => app.setState({ sheet: { type: "factoryReset" } }),
 

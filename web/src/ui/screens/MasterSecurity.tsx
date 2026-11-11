@@ -1,5 +1,4 @@
 import { st } from "../styles";
-import React from "react";
 import { css } from "../css";
 import { Btn, Card, Field, Note, Row } from "../parts";
 import type { Vals } from "../../vm/types";

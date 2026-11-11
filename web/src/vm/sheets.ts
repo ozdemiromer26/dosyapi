@@ -10,7 +10,7 @@ export function buildSheets(c: Ctx): () => Vals {
   /*TOP*/
 
   return () => {
-    const { chip, directProjects, directRecords, s, sh, sheetTitles } = c; /*LATE*/
+    const { directProjects, directRecords, s, sh, sheetTitles } = c; /*LATE*/
     return {
       sheetOpen: !!s.sheet, sheetTitle: sheetTitles[sh.type] || "",
       sheetIsProject: sh.type === "project", sheetIsPeople: sh.type === "people", sheetIsAuthor: sh.type === "author",
@@ -18,10 +18,6 @@ export function buildSheets(c: Ctx): () => Vals {
       sheetIsMenu: sh.type === "menu",
       closeSheet: () => { app.fd = {}; app.setState({ sheet: null, draft: {} }); },
       draft: s.draft || {},
-      draftActiveStyle: chip(!(s.draft && s.draft.done)).replace("height:32px", "flex:1;height:40px"),
-      draftDoneStyle: chip(!!(s.draft && s.draft.done)).replace("height:32px", "flex:1;height:40px"),
-      setActive: () => app.setState(st => ({ draft: { ...st.draft, done: false } })),
-      setDone: () => app.setState(st => ({ draft: { ...st.draft, done: true } })),
       needsApproval: sh.type === "project" || sh.type === "people" ? !directProjects : !directRecords,
       saveLabel: (sh.type === "project" || sh.type === "people" ? directProjects : directRecords) ? tx("Kaydet") : tx("Onaya Gönder"),
       saveProject: () => {

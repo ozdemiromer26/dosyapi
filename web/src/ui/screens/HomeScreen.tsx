@@ -2,6 +2,7 @@ import { st } from "../styles";
 import React from "react";
 import { css } from "../css";
 import type { Vals } from "../../vm/types";
+import { OverdueNotes } from "../parts";
 
 export function HomeScreen({ v }: { v: Vals }) {
   return (
@@ -11,6 +12,7 @@ export function HomeScreen({ v }: { v: Vals }) {
               <div style={css("font-size:21px;font-weight:800;letter-spacing:-.4px")}>{v.T.merhaba} {v.meFirstName}</div>
               <div style={css("font-size:13px;color:var(--muted);margin-top:3px;font-weight:600")}>{v.todayLabel} · {v.meRoleLabel} {v.T.kademe} {v.meLevel}</div>
             </div>
+            <OverdueNotes v={v} link />
             <div style={css("display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,132px),1fr));gap:11px")}>
               {(v.stats || []).map((s: any, i18: number) => (<React.Fragment key={s?.id ?? s?.key ?? i18}>
                 <button onClick={s.onClick} className="hv1" style={css(s.cardStyle)}>
@@ -27,7 +29,7 @@ export function HomeScreen({ v }: { v: Vals }) {
                   <button onClick={v.goTasks} style={css("border:none;background:none;color:var(--brandink);font-size:12px;font-weight:700;cursor:pointer;padding:0")}>{v.T.tumu}</button>
                 </div>
                 {(v.myTasksPreview || []).map((t: any, i19: number) => (<React.Fragment key={t?.id ?? t?.key ?? i19}>
-                  <div style={css("display:flex;align-items:center;gap:10px;background:var(--soft2);border-radius:10px;padding:10px 11px")}>
+                  <div style={css(t.rowStyle + ";padding:10px 11px")}>
                     <button onClick={t.onToggle} style={css(t.checkStyle)}>{t.checkMark}</button>
                     <div style={css("flex:1;min-width:0")}>
                       <div style={css(t.titleStyle)}>{t.title}</div>

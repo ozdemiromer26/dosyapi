@@ -1,5 +1,4 @@
 import { st } from "../styles";
-import React from "react";
 import { css } from "../css";
 import { PoweredBy, NoteBox, AuthBackdrop, AUTH_BG } from "../parts";
 import type { Vals } from "../../vm/types";

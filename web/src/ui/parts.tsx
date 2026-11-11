@@ -1,6 +1,7 @@
 import { st } from "./styles";
 import React from "react";
 import { css } from "./css";
+import type { Vals } from "../vm/types";
 
 /** Giriş ve kurulum zemini: beyaza yakın, ana renge çok hafif çalan geçiş. */
 export const AUTH_BG = "background:linear-gradient(180deg,var(--card) 0%,color-mix(in oklab,var(--pri,#2a3180) 3%,var(--card)) 100%)";
@@ -135,5 +136,19 @@ export function Note({ tone, children }: { tone: Tone; children: React.ReactNode
       <NoteIcon tone={tone} />
       <div style={css("flex:1;min-width:0")}>{children}</div>
     </div>
+  );
+}
+
+/** Süresi geçen görev uyarısı (Özet ve Görevler ekranlarının üstünde). */
+export function OverdueNotes({ v, link }: { v: Vals; link?: boolean }) {
+  if (!v.hasMyOverdue && !v.hasAssignedOverdue) return null;
+  return (
+    <NoteBox tone="err" role="alert">
+      <div style={css("display:flex;flex-direction:column;gap:3px")}>
+        {v.hasMyOverdue ? <span>{v.myOverdueNote}</span> : null}
+        {v.hasAssignedOverdue ? <span>{v.assignedOverdueNote}</span> : null}
+      </div>
+      {link ? <button onClick={v.goTasks} style={css("margin-top:7px;height:30px;padding:0 11px;border:1px solid var(--errline);background:var(--card);color:var(--errtext);border-radius:8px;font-size:12px;font-weight:800;cursor:pointer")}>{v.T.gorevlereGit}</button> : null}
+    </NoteBox>
   );
 }

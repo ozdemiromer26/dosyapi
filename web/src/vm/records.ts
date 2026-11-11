@@ -64,10 +64,9 @@ export function buildRecords(c: Ctx): () => Vals {
     const pool = A ? filteredAuthors : filteredContractors;
     const allOn = pool.length > 0 && pool.every(x => selIds.indexOf(x.id) > -1);
     return {
-      isAuthorsTab: A, isContractorsTab: !A,
+      isContractorsTab: !A,
       recAuthStyle: tabStyle(A), recContStyle: tabStyle(!A),
       recAuthors: () => app.setState({ recTab: "authors" }), recContractors: () => app.setState({ recTab: "contractors" }),
-      authorsList, contractorsList,
       recRows: rows, recNoRows: rows.length === 0, projFilterValue: s.projFilter || "",
       recNarrow: narrow, recIsCard: view === "card", recIsList: view === "list",
       recCardStyle: chip(view === "card").replace("height:32px", "height:40px"),
@@ -76,7 +75,6 @@ export function buildRecords(c: Ctx): () => Vals {
       recFilterAll: A ? tx("Tüm müellifler") : tx("Tüm müteahhitler"),
       recCols: "28px minmax(0,1.6fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.3fr) auto",
       recHeads: A ? [tx("AD SOYAD"), tx("MESLEK · ŞİRKET"), tx("TC"), tx("TELEFON")] : [tx("FİRMA"), tx("YETKİLİ · SINIF"), tx("YETKİ NO"), tx("ADRES")],
-      selCount: selIds.length,
       recDocLabel: (A ? tx("Seçili müelliflerle belge oluştur") : tx("Seçili müteahhitlerle belge oluştur")) + " (" + selIds.length + ")",
       recAddLabel: A ? tx("+ Müellif Ekle") : tx("+ Müteahhit Ekle"),
       selectAllLabel: allOn ? tx("Seçimi temizle") : tx("Tümünü seç"),
@@ -94,8 +92,6 @@ export function buildRecords(c: Ctx): () => Vals {
         app.openGen("contractor", { ids });
       },
       addRecord: () => { app.fd = {}; app.setState({ sheet: { type: A ? "author" : "contractor" }, draft: {} }); },
-      newAuthor: () => { app.fd = {}; app.setState({ sheet: { type: "author" }, draft: {} }); },
-      newContractor: () => { app.fd = {}; app.setState({ sheet: { type: "contractor" }, draft: {} }); },
       professionOptions: s.professions.map(p => ({ name: p })),
       contractorOptions: s.contractors.map(x => ({ id: x.id, title: x.title })),
     };

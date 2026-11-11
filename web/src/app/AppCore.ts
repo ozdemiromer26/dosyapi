@@ -2,9 +2,10 @@
 import { shrinkPhoto } from "./photo";
 import React from "react";
 import { ApiClient } from "../api/client";
+import { LIVE_EVENT, LiveFeed, newTabId } from "./live";
 import { emptyDomain, mapBootstrap, mapMaster, toInput } from "../api/mappers";
 import { LOC, tx } from "../i18n";
-import { STATUS_LABEL, ini } from "../domain/constants";
+import { STATUS_LABEL, ini, localToday } from "../domain/constants";
 import { esc } from "../documents/template";
 import { printFrame } from "../documents/print";
 
@@ -15,7 +16,7 @@ function initialState() {
   return {
     ...emptyDomain(),
     session: null, mode: "loading", authMode: "login", authError: "", authInfo: "", masterError: "",
-    masterAuthed: false, tab: "home", recTab: "authors", filters: ["all"], q: "", projectId: null,
+    masterAuthed: false, today: localToday(), tab: "home", recTab: "authors", filters: ["all"], q: "", projectId: null,
     projFilter: "", selAuthors: [], selContractors: [], recView: "card", apTab: "in", apView: "card", roleChoice: {}, sheet: null, draft: {}, toast: "",
     theme: "light", lang: "tr", vw: typeof window === "undefined" ? 1200 : window.innerWidth,
     mSection: "kimlik", projView: "card", notifOpen: false,
@@ -30,7 +31,7 @@ function initialState() {
 
 export class AppCore extends React.Component<any, any> {
   [key: string]: any;
-  api = new ApiClient();
+  api = new ApiClient(newTabId());
   deepLinkProject: string | null = null;
 
   constructor(props: any) {
@@ -56,7 +57,25 @@ export class AppCore extends React.Component<any, any> {
     this._unloadH = (e) => { if (this.state.tplDirty) { e.preventDefault(); e.returnValue = ""; } };
     window.addEventListener("beforeunload", this._unloadH);
     this.applySlots();
+    this.scheduleDayTick();
     await this.start();
+  }
+
+  /** Yerel gece yarısında "bugün" ilerler; termini dün olan açık görevler o an "süresi geçti" olur. */
+  scheduleDayTick() {
+    clearTimeout(this._dayT);
+    const now = new Date(), next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
+    this._dayT = setTimeout(() => {
+      const today = localToday();
+      if (today !== this.state.today) { this.setState({ today }); this.announceOverdue(today); }
+      this.scheduleDayTick();
+    }, Math.min(next.getTime() - now.getTime(), 3600000));
+  }
+
+  /** Bana atanmış, süresi geçmiş açık görev varsa bir kez hatırlatır. */
+  announceOverdue(today = this.state.today, tasks = this.state.tasks, me = this.state.session) {
+    const n = (tasks || []).filter((t) => t.assignee === me && !t.done && t.due && t.due < today).length;
+    if (n) this.toast(n === 1 ? tx("Süresi geçmiş 1 göreviniz var.") : tx("Süresi geçmiş {n} göreviniz var.").replace("{n}", String(n)));
   }
 
   componentWillUnmount() {
@@ -66,9 +85,13 @@ export class AppCore extends React.Component<any, any> {
     document.removeEventListener("keydown", this._escH);
     window.removeEventListener("beforeunload", this._unloadH);
     clearTimeout(this._ht);
+    clearTimeout(this._dayT);
+    this.stopLive();
   }
 
   componentDidUpdate(_p, prev) {
+    // Canlı güncelleme yalnızca uygulama oturumunda açıktır (giriş, çıkış, oturum düşmesi).
+    if (prev.mode !== this.state.mode) this.state.mode === "app" ? this.startLive() : this.stopLive();
     if (prev.theme !== this.state.theme) this.applyTheme();
     if (prev.lang !== this.state.lang || prev.theme !== this.state.theme) this.savePreferences();
     this.applySlots();
@@ -174,11 +197,44 @@ export class AppCore extends React.Component<any, any> {
     await this.loadSession();
   }
 
-  /** Okunmamış mesaj sayısını yoklar (sekme görünürken, 25 sn'de bir). Anlık bağlantı yerine
-   *  yoklama: kendi sunucusunda tek süreçle çalışan kurulum için yeterli ve basit. */
+  /** Başka oturumlardaki değişiklikler: sunucu "değişti" der, bootstrap yeniden çekilir.
+   *  Ayrıntı için live.ts. Art arda gelen sinyaller tek tazelemede birleşir. */
+  startLive() {
+    if (!this._live) this._live = new LiveFeed(this.api.tab, (why) => this.liveSignal(why), () => this.liveRefresh());
+    this._live.start();
+  }
+  stopLive() {
+    if (this._live) this._live.stop();
+    clearTimeout(this._liveT);
+  }
+  liveSignal(why: "change" | "resync") {
+    // Bağlantı kurulduğunda yeni tazelenmişsek ikinci kez çekmeye gerek yok.
+    if (why === "resync" && Date.now() - (this._lastRefresh || 0) < 3000) return;
+    // Art arda değişikliklerde sekme başına en fazla saniyede bir tazeleme (ofiste aynı IP'yi
+    // paylaşan çok sayıda sekme sunucunun IP başına istek sınırını zorlamasın).
+    clearTimeout(this._liveT);
+    const wait = Math.max(150, 1000 - (Date.now() - (this._lastRefresh || 0)));
+    this._liveT = setTimeout(() => this.liveRefresh(), wait);
+  }
+  async liveRefresh() {
+    if (this.state.mode !== "app") return;
+    if (this._liveBusy) { this._liveAgain = true; return; }
+    this._liveBusy = true;
+    try {
+      await this.refresh();
+      window.dispatchEvent(new Event(LIVE_EVENT));
+    } catch (e) {
+      if (e && e.status === 401) this.fail(e);
+    } finally {
+      this._liveBusy = false;
+      if (this._liveAgain) { this._liveAgain = false; this.liveSignal("change"); }
+    }
+  }
+
+  /** Okunmamış mesaj yoklaması: canlı bağlantı kurulamadığında yedek yol (25 sn'de bir). */
   startMessagePoll() {
     if (this._msgPoll) return;
-    this._msgPoll = setInterval(() => { if (!document.hidden) this.refreshUnread(); }, 25000);
+    this._msgPoll = setInterval(() => { if (!document.hidden && !(this._live && this._live.connected)) this.refreshUnread(); }, 25000);
   }
   async refreshUnread() {
     if (this.state.mode !== "app") return;
@@ -192,9 +248,12 @@ export class AppCore extends React.Component<any, any> {
     try {
       const data = await this.api.get("/bootstrap");
       this.api.csrf = data.csrf;
-      const target = this.deepLinkProject;
+      this._lastRefresh = Date.now();
+      const mapped = mapBootstrap(data);
+      const target = this.deepLinkProject && mapped.projects.some((p) => p.id === this.deepLinkProject) ? this.deepLinkProject : null;
       this.deepLinkProject = null;
-      this.setState({ ...mapBootstrap(data), mode: "app", ...(target ? { tab: "detail", projectId: target } : {}) });
+      this.setState({ ...mapped, mode: "app", ...(target ? { tab: "detail", projectId: target } : {}) });
+      this.announceOverdue(localToday(), mapped.tasks, mapped.session);
       this.startMessagePoll();
     } catch (e) {
       if (e.status === 401) this.setState({ mode: "auth", session: null });
@@ -223,7 +282,12 @@ export class AppCore extends React.Component<any, any> {
     if (this.state.mode === "app") {
       const data = await this.api.get("/bootstrap");
       this.api.csrf = data.csrf;
-      this.setState(this.withoutPending(mapBootstrap(data)));
+      this._lastRefresh = Date.now();
+      const next = this.withoutPending(mapBootstrap(data));
+      // Açık proje başka bir oturumda silindiyse (ya da erişim kalktıysa) listeye dön.
+      const gone = this.state.tab === "detail" && this.state.projectId && !next.projects.some((p) => p.id === this.state.projectId);
+      this.setState({ ...next, ...(gone ? { tab: "projects", projectId: null, sheet: null } : {}) });
+      if (gone) this.toast(tx("Açık olan proje artık erişilebilir değil."));
     }
   }
 

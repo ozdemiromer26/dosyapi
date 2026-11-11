@@ -1,7 +1,6 @@
 import { st } from "../styles";
-import React from "react";
 import { css } from "../css";
-import { Btn, Card, Field, Note, Row, Select } from "../parts";
+import { Btn, Card, Field, Row, Select } from "../parts";
 import type { Vals } from "../../vm/types";
 
 const STATE: Record<string, string> = {

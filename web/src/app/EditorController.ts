@@ -39,7 +39,12 @@ export class EditorController extends AppCore {
       el.onpointerdown = (e) => { if (e.button !== 0) return; const h = this.tblHit(e, el); if (!h) return; e.preventDefault(); this.tblDrag(e, h, el); };
       // Dokunmatikte kenardan başlayan hareket sayfayı kaydırmasın, tabloyu boyutlandırsın.
       el.addEventListener("touchstart", (e) => { const t = e.touches[0]; if (t && this.tblHit({ target: t.target, clientX: t.clientX, clientY: t.clientY, pointerType: "touch" }, el)) e.preventDefault(); }, { passive: false });
-      el.onclick = (e) => { const img = e.target && e.target.tagName === "IMG" ? e.target : null; this._img = img; if (!!img !== !!this.state.edImg) this.setState({ edImg: !!img }); };
+      el.onclick = (e) => {
+        const img = e.target && e.target.tagName === "IMG" ? e.target : null; this._img = img; if (!!img !== !!this.state.edImg) this.setState({ edImg: !!img });
+        // Değişken çipine tıklamak onu seçer: boyut, renk, yazı tipi ve kalın/italik çipe uygulanır.
+        const chip = e.target && e.target.closest ? e.target.closest("[data-v]") : null;
+        if (chip && el.contains(chip)) { this._zone = z; this.selectChip(chip); this.onSel(); }
+      };
       el.onkeydown = (e) => {
         if (!(e.metaKey || e.ctrlKey)) return;
         const k = (e.key || "").toLowerCase();
@@ -50,13 +55,82 @@ export class EditorController extends AppCore {
     });
   }
   relabel(root) {
-    // Eski şablonlardaki çipler sabit yazı tipi taşıyordu; çip artık çevresinin yazı tipini alır.
-    root.querySelectorAll("[data-v]").forEach(n => { n.textContent = varLabel(n.getAttribute("data-v")); n.setAttribute("contenteditable", "false"); n.setAttribute("style", CHIP_CSS); });
+    // Çip çevresinin yazı tipini ve boyutunu alır (font:inherit). Rengi normalde marka rengidir;
+    // kullanıcı çipe ya da çevresine renk verdiyse (data-ink) o renk görünür. Çıktıda çip düz
+    // metne dönüşür ve aynı çevre biçimini taşır.
+    root.querySelectorAll("[data-v]").forEach(n => {
+      n.textContent = varLabel(n.getAttribute("data-v")); n.setAttribute("contenteditable", "false");
+      this.liftChipStyle(n);
+      const ink = this.inkedChip(n, root);
+      n.setAttribute("style", CHIP_CSS + (ink ? ";color:inherit" : ""));
+      if (ink) n.setAttribute("data-ink", "1"); else n.removeAttribute("data-ink");
+      if (n !== this._chipOn) n.removeAttribute("data-on");
+    });
     root.querySelectorAll("[data-pb]").forEach(n => n.setAttribute("contenteditable", "false"));
   }
+  /** Tarayıcı biçimi doğrudan çipin kendisine yazmış olabilir (execCommand); çip stili her
+   *  seferinde sıfırlandığından bu biçim saran bir <span>'a taşınır, kaybolmaz. */
+  liftChipStyle(n) {
+    const st = n.style, own = {};
+    if (st.color && st.color !== "inherit" && st.color.replace(/\s/g, "") !== "rgb(42,49,128)") own.color = st.color;
+    // Eski sabit çip stili (.9em, 600, IBM Plex) biçim sayılmaz; çip artık çevresini izler.
+    const legacy = { fontSize: /^0?\.9em$/, fontWeight: /^600$/ };
+    ["fontSize", "fontFamily", "fontWeight", "fontStyle"].forEach(k => { const x = st[k]; if (x && x !== "inherit" && x !== "initial" && !(legacy[k] && legacy[k].test(x)) && !/IBM Plex/i.test(x)) own[k] = x; });
+    if (!Object.keys(own).length) return;
+    const w = document.createElement("span"); Object.assign(w.style, own);
+    n.parentNode.insertBefore(w, n); w.appendChild(n);
+  }
+  /** Çipin üstünde (bölge içinde) açık bir yazı rengi var mı? */
+  inkedChip(n, root) {
+    for (let p = n.parentNode; p && p !== root && p.nodeType === 1; p = p.parentNode) {
+      if ((p.style && p.style.color) || (p.tagName === "FONT" && p.getAttribute("color"))) return true;
+    }
+    return false;
+  }
+  /** Seçim tam olarak tek bir değişken çipini kapsıyorsa o çip. */
+  chipOf(r) {
+    if (!r || r.collapsed || r.startContainer !== r.endContainer || r.endOffset - r.startOffset !== 1) return null;
+    const n = r.startContainer.childNodes && r.startContainer.childNodes[r.startOffset];
+    return n && n.nodeType === 1 && n.hasAttribute("data-v") ? n : null;
+  }
+  selectChip(chip) {
+    const r = document.createRange(); r.selectNode(chip);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    this._range = r.cloneRange();
+    this.markChip(chip);
+  }
+  markChip(chip) {
+    if (this._chipOn && this._chipOn !== chip) this._chipOn.removeAttribute("data-on");
+    this._chipOn = chip || null;
+    if (chip) chip.setAttribute("data-on", "1");
+  }
+  /** Seçili çipe biçim: çip, yalnızca onu saran bir <span> içine alınır ve stil oraya yazılır.
+   *  Böylece sunucu temizleyicisinin zaten izin verdiği satır içi stil kullanılır; çıktıda
+   *  çip metne dönüşünce biçim aynen kalır. Çip seçili değilse false döner. */
+  chipFormat(apply) {
+    const el = this.restoreSel(); if (!el) return false;
+    const chip = this.chipOf(this._range); if (!chip) return false;
+    this.wrapChip(chip, el, apply);
+    this.relabel(el); this.selectChip(chip);
+    this.syncZones(); this.onSel();
+    return true;
+  }
+  /** Çipi yalnızca onu saran bir <span> içine alır (varsa onu kullanır) ve stili oraya yazar. */
+  wrapChip(chip, el, apply) {
+    const p = chip.parentNode;
+    const lone = p && p !== el && p.tagName === "SPAN" && !p.hasAttribute("data-v")
+      && Array.from(p.childNodes).every(x => x === chip || (x.nodeType === 3 && !x.nodeValue.replace(/\u200B/g, "").trim()));
+    let w = lone ? p : null;
+    if (!w) { w = document.createElement("span"); p.insertBefore(w, chip); w.appendChild(chip); }
+    apply(w.style, getComputedStyle(w));
+    if (!w.getAttribute("style")) w.replaceWith(chip);
+  }
+  /** Seçime giren çipler: tarayıcının biçim komutları düzenlenemez (contenteditable=false)
+   *  çipleri atlar; aynı biçim bunlara ayrıca uygulanır. */
+  chipsIn(el, r) { return r && !r.collapsed ? Array.from(el.querySelectorAll("[data-v]")).filter(ch => r.intersectsNode(ch)) : []; }
   syncZones(silent, typing) {
     const ze = this._ze || {};
-    Object.keys(ze).forEach(z => { this._zh[z] = ze[z].innerHTML; });
+    Object.keys(ze).forEach(z => { this._zh[z] = ze[z].innerHTML.replace(/ data-on="1"/g, ""); });
     if (!silent && !this.state.tplDirty) this.setState({ tplDirty: true });
     if (!silent) this.histPush(typing);
   }
@@ -228,6 +302,8 @@ export class EditorController extends AppCore {
     const z = Object.keys(ze).find(k => ze[k].contains(r.startContainer));
     if (!z) return;
     this._range = r.cloneRange(); this._zone = z;
+    const chip = this.chipOf(r);
+    if (chip !== this._chipOn) this.markChip(chip);
     const n = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentNode;
     const cell = n && n.closest ? n.closest("td,th") : null;
     const inT = !!(cell && ze[z].contains(cell));
@@ -241,7 +317,8 @@ export class EditorController extends AppCore {
     const al = cs ? (n.closest("p,h1,h2,h3,li,td,th,div") || n) : null, ta = al ? getComputedStyle(al).textAlign : "";
     const f = { b: q("bold"), i: q("italic"), u: q("underline"), s: q("strikeThrough"), sub: q("subscript"), sup: q("superscript"), ul: q("insertUnorderedList"), ol: q("insertOrderedList"),
       ta: ta === "start" ? "left" : ta === "end" ? "right" : ta, font: fo ? fo[0] : "", size: pt ? String(pt) : "", block: hb && ze[z].contains(hb) ? hb.tagName.toLowerCase() : "p",
-      va: inT ? getComputedStyle(cell).verticalAlign : "", ...tb };
+      va: inT ? getComputedStyle(cell).verticalAlign : "", chip: !!chip, ...tb };
+    if (chip) { const w = getComputedStyle(chip); f.b = parseInt(w.fontWeight, 10) >= 600; f.i = w.fontStyle === "italic"; f.u = /underline/.test(getComputedStyle(chip.parentNode).textDecorationLine || ""); }
     if (inT) { try { const t = cell.closest("table"), ws = this.tblGrid(t), c0 = this.cellCol(cell); f.colW = Math.round(ws.slice(c0, c0 + (cell.colSpan || 1)).reduce((a, b) => a + b, 0)); f.rowH = this.rowMM(cell.parentNode); } catch (e) {} }
     const js = JSON.stringify(f), patch = {};
     if (inT !== !!this.state.edInTable) patch.edInTable = inT;
@@ -262,13 +339,35 @@ export class EditorController extends AppCore {
   }
   edExec(cmd, val) {
     if (cmd === "undo" || cmd === "redo") return this.histGo(cmd === "undo" ? -1 : 1);
-    if (!this.restoreSel()) return;
+    const chipOps = {
+      foreColor: (s) => { s.color = val; },
+      fontName: (s) => { s.fontFamily = val; },
+      bold: (s, c) => { s.fontWeight = parseInt(c.fontWeight, 10) >= 600 ? "400" : "700"; },
+      italic: (s, c) => { s.fontStyle = c.fontStyle === "italic" ? "normal" : "italic"; },
+      underline: (s, c) => { s.textDecoration = /underline/.test(c.textDecorationLine) ? "" : "underline"; },
+      removeFormat: (s) => { s.cssText = ""; },
+    };
+    if (chipOps[cmd] && this.chipFormat(chipOps[cmd])) return;
+    const el = this.restoreSel(); if (!el) return;
+    const chips = chipOps[cmd] ? this.chipsIn(el, this._range) : [];
+    const q = (c) => { try { return !!document.queryCommandState(c); } catch (e) { return false; } };
+    // Aç/kapa komutlarında hedef durum seçimin şimdiki durumunun tersidir; çipler de ona uyar.
+    const target = { bold: !q("bold"), italic: !q("italic"), underline: !q("underline") }[cmd];
     try { document.execCommand("styleWithCSS", false, ["foreColor", "hiliteColor", "fontName"].indexOf(cmd) > -1); } catch (e) {}
     document.execCommand(cmd, false, val);
+    const set = {
+      foreColor: (s) => { s.color = val; }, fontName: (s) => { s.fontFamily = val; },
+      bold: (s) => { s.fontWeight = target ? "700" : "400"; }, italic: (s) => { s.fontStyle = target ? "italic" : "normal"; },
+      underline: (s) => { s.textDecoration = target ? "underline" : ""; }, removeFormat: (s) => { s.cssText = ""; },
+    }[cmd];
+    if (set) chips.forEach(ch => { if (ch.isConnected) this.wrapChip(ch, el, set); });
+    this.relabel(el);
     this.syncZones(); this.onSel();
   }
   edFontSize(pt) {
+    if (this.chipFormat((s) => { s.fontSize = pt + "pt"; })) return;
     const el = this.restoreSel(); if (!el) return;
+    const chips = this.chipsIn(el, this._range);
     const sel = window.getSelection();
     if (sel.isCollapsed) {
       const sp = document.createElement("span"); sp.style.fontSize = pt + "pt"; sp.textContent = "\u200B";
@@ -278,7 +377,9 @@ export class EditorController extends AppCore {
     }
     try { document.execCommand("styleWithCSS", false, false); } catch (e) {}
     document.execCommand("fontSize", false, "7");
-    el.querySelectorAll('font[size="7"]').forEach(f => { const sp = document.createElement("span"); sp.style.fontSize = pt + "pt"; while (f.firstChild) sp.appendChild(f.firstChild); f.replaceWith(sp); sp.querySelectorAll("[style]").forEach(x => { if (x.style.fontSize) x.style.fontSize = ""; }); });
+    el.querySelectorAll('font[size="7"]').forEach(f => { const sp = document.createElement("span"); sp.style.fontSize = pt + "pt"; while (f.firstChild) sp.appendChild(f.firstChild); f.replaceWith(sp); sp.querySelectorAll("[style]").forEach(x => { if (x.style.fontSize && !x.hasAttribute("data-v")) x.style.fontSize = ""; }); });
+    chips.forEach(ch => { if (ch.isConnected && Math.abs(parseFloat(getComputedStyle(ch).fontSize) - pt * 4 / 3) > 0.2) this.wrapChip(ch, el, (s) => { s.fontSize = pt + "pt"; }); });
+    this.relabel(el);
     this.syncZones(); this.onSel();
   }
   edInsert(html, block) {

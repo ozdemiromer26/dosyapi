@@ -31,3 +31,8 @@ export const HL_COLORS = ["#fff176", "#a5d6a7", "#81d4fa", "#f48fb1", "#ffcc80",
 export const SH_COLORS = ["#f2f2f2", "#e6e6e6", "#d9d9d9", "#bfbfbf", "#e9eefb", "#dbe5f1", "#e2efda", "#fdecea", "#fff4ce", "#fce4d6", "#ede7f6", "#2a3180"];
 export const BC_COLORS = ["#000000", "#444444", "#7f7f7f", "#bfbfbf", "#2a3180", "#1d72b8", "#1b6b3a", "#a8341a"];
 export const COLORS = ["#111111", "#2a3180", "#1d72b8", "#a8341a", "#1b6b3a", "#8a5a00", "#6b6b6b"];
+
+/** Yerel takvim günü "YYYY-AA-GG" (görev terminleriyle aynı biçim). */
+export function localToday(d = new Date()) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}

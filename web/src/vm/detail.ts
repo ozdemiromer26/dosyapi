@@ -115,9 +115,7 @@ export function buildDetail(c: Ctx): () => Vals {
   return () => {
     const { canWriteProjects, cur, curD, directProjects, s } = c; /*LATE*/
     return {
-      detailOwners: curOwners.map(o => ({ ...o, meta: [o.tc ? tx("TC") + " " + o.tc : "", o.phone].filter(Boolean).join(" · ") })),
       noOwners: !curOwners.length,
-      detailProxy: { ...curProxy, meta: [curProxy.tc ? tx("TC") + " " + curProxy.tc : "", curProxy.phone].filter(Boolean).join(" · ") },
       hasProxy: !!curProxy.name, noProxy: !curProxy.name,
       draftOwners: ((s.draft || {}).owners || []).map(o => ({
         ...o, meta: [o.tc, o.phone].filter(Boolean).join(" · ") || "—",
@@ -250,7 +248,6 @@ export function buildDetail(c: Ctx): () => Vals {
           proxy: { name: proxy.name || "", ...person(proxy) },
         };
       })(),
-      openPeople: () => { app.fd = {}; app.setState({ sheet: { type: "people" }, draft: { ...cur } }); },
       detail: curD, docGroups, docSummary, docProgStyle, docExpandAll: docSetAll(true), docCollapseAll: docSetAll(false),
       docFolderIc: ic(["path", { d: "M3 7.5A2 2 0 0 1 5 5.5h4l2 2h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" }]),
       docFileIc: ic(["path", { d: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" }], ["path", { d: "M14 3v5h5" }]),
@@ -258,17 +255,6 @@ export function buildDetail(c: Ctx): () => Vals {
       docsNeedApproval: canWriteProjects && !directProjects,
       detailPendings: projPendings, hasDetailPendings: projPendings.length > 0, detailPendingCount: projPendings.length,
       noFiles: detailFiles.length === 0,
-      onProjectFiles: (e) => {
-        const files = Array.from(e.target.files || []); if (!files.length || !cur) return;
-        try { e.target.value = ""; } catch (er) {}
-        app.uploadFiles(cur.id, null, files);
-      },
-      printProjectAuthors: () => {
-        if (!cur) return;
-        const miss = app.authorMiss(cur); if (miss.length) return app.toast(tx("Önce her meslek için bir müellif atayın: ") + miss.join(", "));
-        const list = (cur.authorIds || []).map(id => s.authors.find(a => a.id === id)).filter(Boolean);
-        app.printAuthorTable(list, cur.name + tx(" · Ada ") + cur.ada + tx(" / Parsel ") + cur.parsel + tx(" · Müteahhit: ") + cur.contractor);
-      },
 
     };
   };

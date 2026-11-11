@@ -10,9 +10,12 @@ const BASE = "/api/v1";
 
 export class ApiClient {
   csrf = "";
+  /** Sekme kimliği: sunucu bu sekmenin kendi değişikliği için canlı sinyal göndermez. */
+  constructor(public tab = "") {}
 
   private headers(extra: Record<string, string> = {}) {
-    return this.csrf ? { "X-CSRF-Token": this.csrf, ...extra } : extra;
+    const base: Record<string, string> = this.tab ? { "X-Tab-Id": this.tab, ...extra } : { ...extra };
+    return this.csrf ? { "X-CSRF-Token": this.csrf, ...base } : base;
   }
 
   private async parse(response: Response) {

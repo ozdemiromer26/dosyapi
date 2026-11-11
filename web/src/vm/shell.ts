@@ -71,7 +71,11 @@ export function buildShell(c: Ctx): () => Vals {
     });
     Object.assign(c, { sh, sheetTitles, isDesktop, contentW, cardCols, listWide, LIST_COLS, domains, domOf, domainConflicts, domainsTxt, decidable, navDefs, sideStyle, botStyle, mkNav, navItems, navNoProf, profOn, bottomNav, menuItems, statCard });
   return () => {
-    const { allProjects, check, docPending, lvl, me, myTasks, pendings, s } = c; /*LATE*/
+    const { allProjects, assignedOverdue, check, docPending, lvl, me, myTasks, pendings, s, top } = c; /*LATE*/
+    const openMine = myTasks.filter(t => !t.done);
+    // Süresi geçenler önce ve ayrı bölümde; atadığım görevlerin gecikenleri de bildirilir.
+    const lateTasks = openMine.filter(t => t.isOverdue).concat(assignedOverdue);
+    const notifCount = decidable + openMine.length + assignedOverdue.length + docPending.length;
     return {
       companyName: s.company.name, companyDesc: s.company.desc, companyMonogram: ini(s.company.name),
       screenTitle: { home: tx("Özet"), projects: tx("Projeler"), detail: tx("Proje detayı"), tasks: tx("Görevler ve yapılacaklar"), messages: tx("Mesajlar"), records: tx("Kayıtlar"), approvals: tx("Onay kuyruğu"), profile: tx("Profil"), company: tx("Şirket ayarları"), templates: tx("Belge şablonları"), about: tx("Hakkında") }[s.tab],
@@ -81,7 +85,7 @@ export function buildShell(c: Ctx): () => Vals {
       meLevel: lvl,
       meRoleBadgeStyle: "display:inline-block;margin-top:7px;font-size:11px;font-weight:800;padding:4px 8px;border-radius:999px;" + (top ? "background:var(--pri,#2a3180);color:#fff" : "background:var(--soft3);color:var(--muted)"),
       todayLabel: new Date().toLocaleDateString(LOC(), { day: "numeric", month: "long", year: "numeric" }),
-      badgeCount: decidable + myTasks.filter(t => !t.done).length + docPending.length || "",
+      badgeCount: notifCount || "",
       navItems, bottomNav, menuItems,
       isDesktop, isMobile: !isDesktop,
       T: Object.keys(TPL).reduce((o, k) => (o[k] = tx(TPL[k]), o), {}),
@@ -97,10 +101,7 @@ export function buildShell(c: Ctx): () => Vals {
       themeIconBtnStyle: "width:36px;height:36px;flex:none;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer",
       themeIconBtnStyleM: "width:36px;height:36px;flex:none;border-radius:9px;border:1px solid var(--mline2);background:var(--mbtn);color:var(--mtext);display:flex;align-items:center;justify-content:center;cursor:pointer",
       theme: s.theme, rootRef: app.rootRef(), vwDebug: String(s.vw),
-      themeLabel: s.theme === "dark" ? tx("Aydınlık") : tx("Karanlık"),
       toggleTheme: () => app.setState(st => ({ theme: st.theme === "dark" ? "light" : "dark" })),
-      themeTrackStyle: "width:48px;height:26px;flex:none;border-radius:999px;padding:3px;cursor:pointer;display:flex;align-items:center;transition:background .18s ease;" + (s.theme === "dark" ? "justify-content:flex-end;background:var(--pri,#2a3180);border:1px solid var(--pri,#2a3180)" : "justify-content:flex-start;background:var(--soft3);border:1px solid var(--line)"),
-      themeKnobStyle: "width:20px;height:20px;border-radius:50%;display:block;box-shadow:0 1px 3px rgba(0,0,0,.28);background:" + (s.theme === "dark" ? "#fff" : "var(--card)"),
       remember: s.remember,
       rememberMark: s.remember ? "✓" : "",
       rememberCheckStyle: check(s.remember).replace("width:24px;height:24px", "width:20px;height:20px"),
@@ -123,12 +124,14 @@ export function buildShell(c: Ctx): () => Vals {
       toggleNotif: () => app.setState(st => ({ notifOpen: !st.notifOpen, profileMenuOpen: false })),
       closeNotif: () => app.setState({ notifOpen: false }),
       notifApprovals: pendings.filter(p => p.canDecide).slice(0, 4).map(p => ({ id: p.id, title: p.title, meta: p.kindLabel + " · " + p.when })),
-      notifTasks: myTasks.filter(t => !t.done).slice(0, 4).map(t => ({ id: t.id, title: t.title, meta: tx("Termin ") + t.dueLabel })),
+      notifLate: lateTasks.slice(0, 4).map(t => ({ id: t.id, title: t.title, meta: tx("Termin ") + t.dueDateLabel + (t.assignee !== (me && me.id) ? " · " + tx("atanan ") + t.assigneeLabel : "") })),
+      hasNotifLate: lateTasks.length > 0,
+      notifTasks: openMine.filter(t => !t.isOverdue).slice(0, 4).map(t => ({ id: t.id, title: t.title, meta: tx("Termin ") + t.dueLabel })),
       notifDocs: docPending.slice(0, 4).map(p => ({ id: p.id, title: p.name, meta: p.docMissing + tx(" zorunlu belge bekliyor"), onOpen: () => app.setState({ tab: "detail", projectId: p.id, notifOpen: false }) })),
       hasNotifApprovals: decidable > 0,
-      hasNotifTasks: myTasks.filter(t => !t.done).length > 0,
+      hasNotifTasks: openMine.some(t => !t.isOverdue),
       hasNotifDocs: docPending.length > 0,
-      noNotif: decidable + myTasks.filter(t => !t.done).length + docPending.length === 0,
+      noNotif: notifCount === 0,
       isHome: s.tab === "home", isProjects: s.tab === "projects", isDetail: s.tab === "detail",
       isTasks: s.tab === "tasks", isRecords: s.tab === "records", isApprovals: s.tab === "approvals",
       isProfile: s.tab === "profile", isCompany: s.tab === "company", isAbout: s.tab === "about", isMessages: s.tab === "messages",
@@ -145,8 +148,8 @@ export function buildShell(c: Ctx): () => Vals {
         refreshUnread: () => app.refreshUnread(),
         fail: (e) => app.fail(e),
       },
-      goHome: () => app.setState({ tab: "home" }), goProjects: () => app.setState({ tab: "projects" }),
-      goTasks: () => app.setState({ tab: "tasks" }), goApprovals: () => app.setState({ tab: "approvals" }),
+      goProjects: () => app.setState({ tab: "projects" }),
+      goTasks: () => app.setState({ tab: "tasks", notifOpen: false }), goApprovals: () => app.setState({ tab: "approvals" }),
       goProfile: () => app.setState({ tab: "profile", profileMenuOpen: false }),
 
       stats: (() => {
@@ -162,7 +165,8 @@ export function buildShell(c: Ctx): () => Vals {
         ];
       })(),
       recentProjects: allProjects.slice(0, 3),
-      myTasksPreview: myTasks.filter(t => !t.done).slice(0, 3),
+      // Süresi geçenler önizlemede başta.
+      myTasksPreview: openMine.slice().sort((a, b) => Number(b.isOverdue) - Number(a.isOverdue)).slice(0, 3),
       noMyTasks: myTasks.length === 0,
 
     };

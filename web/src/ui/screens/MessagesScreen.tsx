@@ -1,10 +1,12 @@
 import React from "react";
 import { css } from "../css";
 import { LOC } from "../../i18n";
+import { LIVE_EVENT } from "../../app/live";
 import type { Vals } from "../../vm/types";
 
 /** Birebir mesajlaşma: solda konuşmalar, sağda seçili konuşma (dar ekranda tek bölme).
- *  Yeni mesajlar yoklamayla gelir: liste 10 sn'de, açık konuşma 4 sn'de bir (sekme görünürken). */
+ *  Yeni mesajlar canlı sinyalle anında gelir; sinyal kaçarsa diye seyrek yoklama da sürer
+ *  (liste 30 sn'de, açık konuşma 15 sn'de bir, sekme görünürken). */
 
 type Conv = { id: string; otherId: string; lastAt: number; lastBody: string; lastFromMe: boolean; unread: number };
 type Msg = { id: string; seq: number; senderId: string; body: string; createdAt: number };
@@ -57,7 +59,7 @@ export function MessagesScreen({ v }: { v: Vals }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => { loadList(); }, [loadList]);
-  useVisibleInterval(loadList, 10000, []);
+  useVisibleInterval(loadList, 30000, []);
 
   const loadThread = React.useCallback(async (id: string, initial: boolean) => {
     try {
@@ -79,7 +81,15 @@ export function MessagesScreen({ v }: { v: Vals }) {
     setMsgs([]); setHasMore(false); stick.current = true;
     if (openId) loadThread(openId, true).then(loadList);
   }, [openId]); // eslint-disable-line react-hooks/exhaustive-deps
-  useVisibleInterval(() => { if (openId) loadThread(openId, false); }, 4000, [openId]);
+  useVisibleInterval(() => { if (openId) loadThread(openId, false); }, 15000, [openId]);
+  // Başka bir oturumdan değişiklik sinyali: liste ve açık konuşma hemen tazelenir.
+  const onLive = React.useRef<() => void>(() => {});
+  onLive.current = () => { loadList(); if (openId) loadThread(openId, false); };
+  React.useEffect(() => {
+    const h = () => onLive.current();
+    window.addEventListener(LIVE_EVENT, h);
+    return () => window.removeEventListener(LIVE_EVENT, h);
+  }, []);
 
   // Yeni mesaj gelince, kullanıcı en alttaysa aşağı kaydır.
   React.useLayoutEffect(() => {

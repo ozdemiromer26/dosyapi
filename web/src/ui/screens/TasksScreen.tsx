@@ -2,6 +2,7 @@ import { st } from "../styles";
 import React from "react";
 import { css } from "../css";
 import type { Vals } from "../../vm/types";
+import { OverdueNotes } from "../parts";
 
 const FIELD = "height:38px;border:1px solid var(--line);background:var(--card);border-radius:9px;padding:0 10px;font-size:13px;font-weight:700;color:var(--ink);min-width:0";
 const ICON_BTN = "flex:none;width:32px;height:30px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center";
@@ -46,12 +47,12 @@ function AssignedTask({ t, v }: { t: any; v: Vals }) {
     );
   }
   return (
-    <div style={css("display:flex;align-items:center;gap:8px;background:var(--soft2);border-radius:10px;padding:11px")}>
+    <div style={css(t.rowStyle + ";gap:8px")}>
       <div style={css("flex:1;min-width:0")}>
         <div style={css(t.titleStyle)}>{t.title}</div>
-        <div style={st.caption}>{t.assigneeLabel} · {t.dueLabel}</div>
+        <div style={st.caption}>{t.assigneeLabel} · {t.dueDateLabel}</div>
       </div>
-      <span style={css(t.stateStyle)}>{t.stateLabel}</span>
+      {t.isOverdue ? <span style={css(t.overdueStyle)}>{t.overdueLabel}</span> : <span style={css(t.stateStyle)}>{t.stateLabel}</span>}
       {t.canEdit ? <button onClick={open} aria-label={v.T.duzenle} title={v.T.duzenle} style={css(ICON_BTN + ";border:1px solid var(--line);background:var(--card);color:var(--ink)")}>{PENCIL}</button> : null}
       <button onClick={t.onDelete} aria-label={v.T.sil} title={v.T.sil} style={css(ICON_BTN + ";border:1px solid var(--errline);background:var(--err);color:var(--errtext)")}>✕</button>
     </div>
@@ -61,6 +62,7 @@ function AssignedTask({ t, v }: { t: any; v: Vals }) {
 export function TasksScreen({ v }: { v: Vals }) {
   return (
     <>
+          {v.hasMyOverdue || v.hasAssignedOverdue ? <div style={css("margin-bottom:14px")}><OverdueNotes v={v} /></div> : null}
           <div style={css("display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:14px;align-items:stretch")}>
             <div style={st.stack14}>
               {v.canAssign ? (<>
@@ -88,7 +90,7 @@ export function TasksScreen({ v }: { v: Vals }) {
               <div style={css("flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:11px")}>
                 <div style={st.title14}>{v.T.banaAtananGorevler}</div>
                 {(v.myTasks || []).map((t: any, i39: number) => (<React.Fragment key={t?.id ?? t?.key ?? i39}>
-                  <div style={css("display:flex;align-items:center;gap:10px;background:var(--soft2);border-radius:10px;padding:11px")}>
+                  <div style={css(t.rowStyle)}>
                     <button onClick={t.onToggle} style={css(t.checkStyle)}>{t.checkMark}</button>
                     <div style={css("flex:1;min-width:0")}>
                       <div style={css(t.titleStyle)}>{t.title}</div>

@@ -29,6 +29,7 @@ Güvenlik açıklarını herkese açık kanaldan yazmayın; depo sahibine özel 
 | Güncelleme saldırısı | Ed25519 imzalı bildirim, SHA-256 bağlı paket, sürüm geri alma engeli, kanal bağlama. Uygulama süreci kendi ikilisine yazamaz; root güncelleyici imzayı kendisi doğrular ve paketi root'a ait klasöre kopyaladıktan sonra özetler. |
 | Onay ezmesi | Talep yalnızca değişen alanları taşır; onay bekleyen kayıt kilitlidir, kayıt yine de değiştiyse onay reddedilir. |
 | İz silme | Denetim günlüğü anahtarlı hash zinciridir; veritabanı tetikleyicileri değişikliği engeller, doğrudan müdahale panelden tespit edilir. |
+| Canlı güncelleme | `/api/v1/events` (Server-Sent Events) yalnızca oturum açmış kullanıcıya açılır ve hiçbir kayıt taşımaz: yalnızca "değişti" sinyali gönderir; istemci veriyi `/bootstrap` ile kendi yetkisiyle yeniden çeker. Oturum 30 sn'de bir yeniden denetlenir, geçersizse akış kapanır; bu denetim oturumu tazelemez. Kullanıcı başına 8, toplam 1000 akış sınırı vardır. Sinyal yalnızca başarılı değiştirici isteklerden sonra gider; reddedilen istekler ve oturum işlemleri sinyal üretmez. |
 | Sunucu sızması | systemd sertleştirmesi; süreç ayrıcalıksız, yalnızca veri klasörüne yazabilir. |
 
 ### Prototipten bilinçli sapmalar
@@ -48,7 +49,7 @@ Güvenlik açıklarını herkese açık kanaldan yazmayın; depo sahibine özel 
 
 ```bash
 make test       # birim testleri
-make pentest    # 308 saldırı senaryosu (--timing ile 317)
+make pentest    # 334 saldırı senaryosu (--timing ile 343)
 python3 security/update_test.py --help   # güncelleme saldırıları
 make audit      # cargo audit + npm audit
 ```

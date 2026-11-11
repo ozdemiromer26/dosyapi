@@ -1,5 +1,5 @@
 import { st } from "../styles";
-import React, { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { css } from "../css";
 import type { Vals } from "../../vm/types";
 

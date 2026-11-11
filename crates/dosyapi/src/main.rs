@@ -192,10 +192,12 @@ async fn serve(config: Config) -> Result<()> {
         }
     });
 
+    let events = Arc::new(http::events::EventHub::new());
     let state = http::AppState {
         services: services.clone(),
         public_url: runtime.public_url.clone(),
         trust_proxy: config.server.trust_proxy,
+        events: events.clone(),
     };
     let router = http::router(state);
 
@@ -213,7 +215,10 @@ async fn serve(config: Config) -> Result<()> {
         listener,
         router.into_make_service_with_connect_info::<SocketAddr>(),
     )
-    .with_graceful_shutdown(shutdown_signal())
+    .with_graceful_shutdown(async move {
+        shutdown_signal().await;
+        events.close();
+    })
     .await?;
     Ok(())
 }

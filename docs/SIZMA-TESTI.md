@@ -7,12 +7,12 @@ bağımsız denetimin yerini tutmaz.
 
 | Sınama | Araç | Sonuç |
 | --- | --- | --- |
-| Saldırı senaryoları | `security/pentest.py` | 308/308 geçti (hata ayıklama derlemesi) |
-| Sürüm derlemesi, gerçek Argon2id | `pentest.py --timing` | 317/317 geçti |
+| Saldırı senaryoları | `security/pentest.py` | 334/334 geçti (hata ayıklama derlemesi) |
+| Sürüm derlemesi, gerçek Argon2id | `pentest.py --timing` | 343/343 geçti |
 | Kullanıcı numaralandırma süresi | `pentest.py --timing` | Olmayan hesap 72 ms, var olan hesap 72 ms |
 | Güncelleme saldırıları | `security/update_test.py` | 18/18 geçti |
 | SQL enjeksiyonu taraması | sqlmap 1.10 (seviye 3, risk 2) | İki turda toplam 8 farklı uç noktada enjeksiyon bulunmadı |
-| Bilinen açıklar | `cargo audit`, `npm audit` | 0 açık (bir istisna aşağıda) |
+| Bilinen açıklar | `cargo audit`, `npm audit` | npm: 0 açık. cargo: 1 açık açık, 1 istisna (aşağıda) |
 | Statik denetim | clippy `-D warnings`, TypeScript, shellcheck | Temiz |
 | Birim testleri | `cargo test` | 44/44 geçti |
 | Temiz kopyadan derleme | `make build` | Geçti |
@@ -27,6 +27,13 @@ metni ve URL yolu. İşlenen yük sayısı 1.128 proje, 969 müellif, 443 mütea
 `cargo audit` istisnası: `RUSTSEC-2023-0071` (`rsa`). Paket yalnızca kullanılmayan sqlx-mysql sürücüsü yüzünden `Cargo.lock`
 içinde görünür, derlenmez. `cargo tree -i rsa` boş döner.
 
+Açık bulgu (11 Kasım 2026): `RUSTSEC-2026-0459` (`libsqlite3-sys` 0.30.1, gömülü SQLite < 3.54). Saldırganın veri
+klasörüne özel hazırlanmış bir veritabanı ve `-wal` dosyası koyabildiği durumda sorgular süreç belleğinden eski baytlar
+döndürebilir (yerel saldırı, bilgi sızıntısı). dosyapı yalnızca kendi oluşturduğu veritabanını açar ve dışarıdan
+veritabanı dosyası yükleme yolu yoktur; bu yüzden risk düşüktür. Düzeltme `libsqlite3-sys` ≥ 0.39 gerektirir; sqlx 0.9.0
+bile `< 0.38` ile sınırlı olduğu için şu an yükseltilemiyor. sqlx yeni sürümü çıkınca yükseltilecek; istisna listesine
+bilerek eklenmedi, `cargo audit` hatırlatmaya devam eder.
+
 ## Kapsanan saldırılar
 
 | Alan | Senaryolar |
@@ -39,6 +46,8 @@ içinde görünür, derlenmez. `cargo tree -i rsa` boş döner.
 | Proje ayrıntısı | Toplamı 1/1 olmayan ya da kesir olmayan hisse; fotoğraf olarak SVG, HTML, çalıştırılabilir ve büyük dosya; onaylı ve salt okuma rolüyle fotoğraf değişimi; CSRF; diskte düz fotoğraf; proje silinince fotoğrafın kalması; kişisel notu başka kullanıcının okuması, bootstrap'a sızması, CSRF'siz ya da oturumsuz erişim, aşırı uzun ve denetim karakterli not, diskte düz not, proje silinince notun kalması |
 | Görev ve iki adımlı doğrulama | Başkasının ya da atananın görevi düzenlemesi, düzenlemede üst kademeye atama, takvimde olmayan tarih (2030-13-45), bilinmeyen alan, CSRF; iki adımlı doğrulamayı yanlış kodla açma, açıkken kodsuz giriş, yanlış şifreyle ya da CSRF'siz kapatma, kapattıktan sonra normal giriş; aynı TOTP kodunu ikinci kez kullanma (kullanıcı ve master), kurulum kodunu girişte tekrar kullanma, kurtarma kodunun ikinci kullanımı, başka hesabın kurtarma kodu, yenilemeden sonra eski kod, açıkken şifresiz yeniden kurulum, diskte düz kurtarma kodu. 2FA senaryoları IP giriş sınırını paylaşmamak için ayrı bir test sunucusunda koşar. |
 | Mesajlaşma | Üçüncü kişinin konuşmayı okuması (IDOR), listesine ya da bootstrap'ına sızma, oturumsuz okuma, CSRF'siz gönderim, kendine ve olmayan kişiye gönderim, SQL enjeksiyonlu alıcı kimliği, boş/aşırı uzun/denetim karakterli mesaj, gönderen alanını taklit, geçersiz sayfa parametresi, diskte düz mesaj, toplu gönderim (oran sınırı) |
+| Hesap silme talebi | Üst yöneticinin talep açamaması, alt kademenin talep açması, ikinci talebin reddi, üst kademenin karar verebilmesi, talep edenin kendi talebine karar verememesi, geri çekme |
+| Canlı güncelleme | Oturumsuz ve master oturumuyla akış açma, olayın veri taşımaması, reddedilen ve okuma isteklerinin olay üretmemesi, isteği yapan sekmenin kendi değişikliğini almaması, kullanıcı başına akış sınırı (9. akış 429) ve kapanan akışın yerinin boşalması, oturum kapanınca açık akışın kendiliğinden bitmesi, açık akış varken sunucunun hemen kapanabilmesi |
 | Onaylar | Başkasının ya da karar verenin talebi geri çekmesi (IDOR), CSRF'siz geri çekme, aynı talebin ikinci kez geri çekilmesi, geri çekilen değişikliğin uygulanmaması ve kilidin kalkması; sonuçlanan talebin yalnızca talep edene görünmesi ve kullanıcı kimliği sızdırmaması |
 | Toplu atama | Rol, durum ve kimlik alanlarını isteğe ekleme |
 | CSRF | Belirteçsiz istek, başka oturumun belirteci, yabancı köken, giriş CSRF'si, CORS |

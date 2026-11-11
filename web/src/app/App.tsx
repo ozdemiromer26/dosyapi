@@ -1,4 +1,3 @@
-import React from "react";
 import { buildVals } from "../vm";
 import { Root } from "../ui/screens/Root";
 import { DocumentController } from "./DocumentController";
