@@ -14,7 +14,7 @@ import { MasterAbout } from "./MasterAbout";
 export function MasterPanel({ v }: { v: Vals }) {
   return (
     <>
-    <div style={css("flex:1;background:var(--mbg);padding:0 0 60px;--pri:#1E4FD8;--acc:#163CA8;--brandink:var(--mbrandink);font-family:var(--sans)")}>
+    <div style={css("flex:1;background:var(--mbg);padding:0 0 60px;--pri:#1E4FD8;--brandink:var(--mbrandink);font-family:var(--sans)")}>
       <div style={css("position:sticky;top:0;z-index:10;background:var(--mbg);border-bottom:1px solid var(--mline);padding:14px 18px;display:flex;align-items:center;gap:" + (v.isDesktop ? 12 : 8) + "px")}>
         <div style={css("width:34px;height:34px;border-radius:9px;background:#FFFFFF;border:1px solid var(--mline);display:flex;align-items:center;justify-content:center;flex:none")}>{v.brandMarkLight}</div>
         {/* Başlık tek satır kalır: mobilde de Çıkış alta düşmez. */}

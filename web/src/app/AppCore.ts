@@ -183,7 +183,7 @@ export class AppCore extends React.Component<any, any> {
     }
     this.setState({
       company: { name: info.companyName, desc: info.companyDesc, logoUrl: info.hasLogo ? "/api/v1/public/logo" : "" },
-      palette: { pri: info.pri, acc: info.acc }, domains: info.domains, domainLock: info.domainLock, privacyNotice: info.privacyNotice,
+      palette: { pri: info.pri }, domains: info.domains, domainLock: info.domainLock, privacyNotice: info.privacyNotice,
     });
     if (info.setupRequired) return this.setState({ mode: "setup" });
     const reset = /^#\/sifre-sifirla\?token=([\w-]+)/.exec(hash);

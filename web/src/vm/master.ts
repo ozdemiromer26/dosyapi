@@ -90,9 +90,8 @@ export function buildMaster(c: Ctx): () => Vals {
         app.clearFields("mOld", "mNew", "mNew2");
         app.api.post("/master/password", body).then(() => { app.toast(tx("Master şifre güncellendi.")); app.closeMaster(); }, (e) => app.fail(e));
       },
-      saveCompanyMaster: () => app.act(() => app.api.put("/master/identity", { name: app.fd.cName ?? s.company.name, desc: app.fd.cDesc ?? s.company.desc, pri: s.palette.pri, acc: s.palette.acc }), tx("Şirket kimliği güncellendi.")),
+      saveCompanyMaster: () => app.act(() => app.api.put("/master/identity", { name: app.fd.cName ?? s.company.name, desc: app.fd.cDesc ?? s.company.desc, pri: s.palette.pri }), tx("Şirket kimliği güncellendi.")),
       onPriColor: (e) => { const v = e.target.value; app.setState(st => ({ palette: { ...st.palette, pri: v } })); },
-      onAccColor: (e) => { const v = e.target.value; app.setState(st => ({ palette: { ...st.palette, acc: v } })); },
       onLogoFile: (e) => {
         const f = e.target.files && e.target.files[0]; if (!f) return;
         app.act(() => app.api.raw("PUT", "/master/logo", f), tx("Logo yüklendi: ") + f.name);

@@ -1,9 +1,16 @@
 # Kurulum
 
-## Tek komutla kurulum (önerilen)
+## Gereksinimler
 
-Gerekenler: Ubuntu/Debian gibi bir Linux sunucu (1 GB RAM yeterli) ve DNS'te sunucunun IP'sini gösteren bir alan adı
-(ör. `dosya.sirket.com` için A kaydı).
+| | En az | Not |
+| --- | --- | --- |
+| İşletim sistemi | Ubuntu 22.04+ / Debian 12+ (64 bit, amd64 veya arm64) | systemd kullanan başka dağıtımlar da çalışır |
+| Bellek | 1 GB | Kaynak koddan derlemede 3 GB; az ise betik derleme süresince geçici takas açar |
+| Disk | 2 GB + belgeler | Kaynak koddan derlemede Docker için ~6 GB boş yer |
+| Ağ | 80 ve 443 portları açık | Let's Encrypt sertifikası için |
+| Alan adı | Sunucu IP'sini gösteren A kaydı | Ör. `dosya.sirket.com`; deneme için `sslip.io` (aşağıda) |
+
+## Tek komutla kurulum (önerilen)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ozdemiromer26/dosyapi/main/deploy/kur.sh | sudo bash -s -- --domain dosya.sirket.com
@@ -18,7 +25,7 @@ Betik sırasıyla:
 5. Uygulamayı ve Caddy'yi başlatır. Caddy HTTPS sertifikasını Let's Encrypt'ten kendisi alır ve yeniler.
 6. Adresi ve tek kullanımlık **kurulum belirtecini** ekrana yazar.
 
-Tarayıcıdan adresi açıp belirteci girin; şirket adı, master şifre ve ilk yönetici hesabını oluşturun.
+Tarayıcıdan adresi açıp kurulum sihirbazını tamamlayın (bkz. [Kurulumdan sonra](#kurulumdan-sonra)).
 
 Kurulum yarıda kalırsa ya da `uninstall` ile kaldırıldıysa betik yeniden çalıştırılabilir: çalışan bir kurulum yoksa
 kaldığı yerden devam eder, mevcut veriler (`/opt/dosyapi/data`) korunur.
@@ -33,6 +40,20 @@ kaldığı yerden devam eder, mevcut veriler (`/opt/dosyapi/data`) korunur.
 
 Alan adınız yoksa denemek için IP'den türetilen bir ad kullanabilirsiniz: sunucu IP'si `203.0.113.5` ise
 `--domain 203-0-113-5.sslip.io`. Bu ad doğrudan sunucuya çözülür ve Let's Encrypt sertifikası alınabilir.
+
+### Kurulumdan sonra
+
+1. **Kurulum sihirbazı** (tarayıcıda, dört adım): kurulum belirteci → şirket adı → Sistem Paneli (master) şifresi →
+   ilk yönetici hesabı. Belirteç yanlışsa sihirbaz son adımda bunu söyler ve ilk adıma döner. Belirteci kaybettiyseniz
+   `sudo dosyapi-ctl token` yenisini üretir.
+2. **Sistem Paneli** `https://dosya.sirket.com/#sistem` adresindedir; master şifreyle girilir. Şirket kullanıcıları
+   bu adresi bilmek zorunda değildir.
+3. Sistem Paneli'nde önerilen ilk ayarlar:
+   - **Güvenlik:** master için iki adımlı doğrulamayı açın.
+   - **E-posta:** SMTP girin; yoksa kullanıcılar şifrelerini kendileri sıfırlayamaz.
+   - **Roller ve kullanıcılar:** kademeleri ve yetkileri düzenleyin, ekibi ekleyin (her kullanıcıya tek kullanımlık
+     davet bağlantısı üretilir).
+   - **Şirket kimliği:** logo, ana renk ve KVKK aydınlatma metni.
 
 ### Yönetim
 
@@ -68,6 +89,7 @@ başkasının eline geçmesi veriyi açması demektir.
 - Uygulama konteyneri dışarıya port açmaz; trafiği yalnızca Caddy iletir. Konteyner salt okunur kök dosya sistemiyle,
   tüm Linux yetkileri düşürülmüş ve ayrıcalıksız kullanıcıyla (10001) çalışır.
 - İmajlar GitHub Actions'ta derlenir, `ghcr.io` üzerinden yayınlanır; yapı kökeni (provenance) ve SBOM eklenir.
+  Hazır imaj yoksa ya da indirilemiyorsa betik `--from-source` ile sunucuda derlemeyi önerir.
 
 ## Yayıncı için: Docker imajı
 
@@ -81,8 +103,10 @@ paketin görünürlüğünü **Public** yapın (Profile → Packages → dosyapi
 sudo ./install.sh --url https://dosya.sirket.com
 ```
 
-Betik şunları yapar: `dosyapi` adında ayrıcalıksız kullanıcı açar, ikiliyi `/opt/dosyapi/bin` altına koyar, yapılandırmayı
-`/etc/dosyapi`, veriyi `/var/lib/dosyapi` altına yerleştirir ve systemd servislerini başlatır.
+Depoda derlenmiş paket yoksa Rust (1.95+) ve Node.js (22+) gerekir; betik ikiliyi derler. `dosyapi` adında ayrıcalıksız
+kullanıcı açar, ikiliyi `/opt/dosyapi/bin` altına koyar, yapılandırmayı `/etc/dosyapi`, veriyi `/var/lib/dosyapi` altına
+yerleştirir, systemd servislerini başlatır ve kurulum belirtecini yazar. Sonrası Docker kurulumundaki gibidir:
+[Kurulumdan sonra](#kurulumdan-sonra).
 
 | Yol | İçerik |
 | --- | --- |
@@ -105,6 +129,12 @@ Kurulumdan sonra Sistem Paneli → Alan adı & DNS bölümünde *Otomatik HTTPS 
 
 **Ters vekil.** nginx için `deploy/nginx/dosyapi.conf` örneğini kullanın ve `config.toml` içinde `trust_proxy = true` yapın.
 Bu ayar yalnızca sunucuya gerçekten vekil arkasından ulaşılıyorsa açılmalıdır; aksi hâlde istemci IP'si taklit edilebilir.
+
+Canlı güncelleme `/api/v1/events` adresinde uzun süre açık kalan bir bağlantıdır (Server-Sent Events). Uygulama
+`X-Accel-Buffering: no` başlığını gönderdiği için nginx olayları tamponlamaz; 20 saniyede bir canlı tutma sinyali
+gittiği için `proxy_read_timeout` 60 saniyeden kısa olmamalıdır (örnekte 300). Başka bir vekil kullanıyorsanız bu yolda
+yanıt tamponlamayı ve sıkıştırmayı kapatın. Docker kurulumundaki Caddy için bu ayar hazırdır. Bağlantı kurulamazsa
+uygulama yine çalışır, yalnızca değişiklikler birkaç saniye gecikmeyle görünür.
 
 ## Kaynaktan Docker ile derleme
 

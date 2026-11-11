@@ -7,8 +7,8 @@ bağımsız denetimin yerini tutmaz.
 
 | Sınama | Araç | Sonuç |
 | --- | --- | --- |
-| Saldırı senaryoları | `security/pentest.py` | 334/334 geçti (hata ayıklama derlemesi) |
-| Sürüm derlemesi, gerçek Argon2id | `pentest.py --timing` | 343/343 geçti |
+| Saldırı senaryoları | `security/pentest.py` | 335/335 geçti (hata ayıklama derlemesi) |
+| Sürüm derlemesi, gerçek Argon2id | `pentest.py --timing` | 344/344 geçti |
 | Kullanıcı numaralandırma süresi | `pentest.py --timing` | Olmayan hesap 72 ms, var olan hesap 72 ms |
 | Güncelleme saldırıları | `security/update_test.py` | 18/18 geçti |
 | SQL enjeksiyonu taraması | sqlmap 1.10 (seviye 3, risk 2) | İki turda toplam 8 farklı uç noktada enjeksiyon bulunmadı |

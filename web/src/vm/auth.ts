@@ -10,7 +10,7 @@ export function buildAuth(c: Ctx): () => Vals {
   return () => {
     const { s, tabStyle } = c; /*LATE*/
     return {
-      pPri: s.palette.pri, pAcc: s.palette.acc,
+      pPri: s.palette.pri,
       isAuth: s.mode === "auth", isMaster: s.mode === "master", isApp: s.mode === "app",
       isLogin: s.authMode === "login", isRegister: s.authMode === "register",
       authError: s.authError, authInfo: s.authInfo,

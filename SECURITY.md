@@ -49,7 +49,7 @@ Güvenlik açıklarını herkese açık kanaldan yazmayın; depo sahibine özel 
 
 ```bash
 make test       # birim testleri
-make pentest    # 334 saldırı senaryosu (--timing ile 343)
+make pentest    # 335 saldırı senaryosu (--timing ile 344)
 python3 security/update_test.py --help   # güncelleme saldırıları
 make audit      # cargo audit + npm audit
 ```

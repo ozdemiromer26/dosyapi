@@ -20,7 +20,6 @@ pub struct IdentityInput {
     #[serde(default)]
     pub desc: String,
     pub pri: String,
-    pub acc: String,
 }
 
 #[derive(Clone)]
@@ -40,7 +39,6 @@ impl CompanyService {
         company.desc = validate::text(&input.desc, "Kısa açıklama", 500)?;
         let palette = Palette {
             pri: validate::hex_color(&input.pri)?,
-            acc: validate::hex_color(&input.acc)?,
         };
         self.settings.set_json(KEY_COMPANY, &company).await?;
         self.settings.set_json(KEY_PALETTE, &palette).await?;

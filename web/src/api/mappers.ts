@@ -88,7 +88,7 @@ export function mapMaster(data: any) {
 export function emptyDomain() {
   return {
     company: { name: "", desc: "", logoUrl: "" },
-    palette: { pri: "#1E4FD8", acc: "#163CA8" },
+    palette: { pri: "#1E4FD8" },
     domains: [], domainLock: false, domainConflicts: [],
     roles: [], users: [], docTypes: [], professions: [], profRequired: {},
     projects: [], authors: [], contractors: [], tasks: [], todos: [], pendings: [], history: [], templates: [],

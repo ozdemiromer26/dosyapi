@@ -24,7 +24,6 @@ struct PublicInfo {
     company_desc: String,
     has_logo: bool,
     pri: String,
-    acc: String,
     domain_lock: bool,
     domains: Vec<String>,
     mail_configured: bool,
@@ -42,7 +41,6 @@ async fn info(State(state): State<AppState>) -> ApiResult<Json<PublicInfo>> {
         company_desc: company.desc,
         has_logo: company.has_logo,
         pri: palette.pri,
-        acc: palette.acc,
         domains: if domain_lock {
             s.settings.domains().await?
         } else {

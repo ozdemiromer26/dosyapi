@@ -9,7 +9,7 @@ import { Sheets } from "./Sheets";
 
 export function Root({ v }: { v: Vals }) {
   return (
-    <><div ref={v.rootRef} data-theme={v.theme} style={css(`--pri:${v.pPri};--acc:${v.pAcc};min-height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--ink)`)}>
+    <><div ref={v.rootRef} data-theme={v.theme} style={css(`--pri:${v.pPri};min-height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--ink)`)}>
 
   {v.isLoading ? <div style={css("flex:1")} /> : null}
   {v.isSetup ? <SetupScreen v={v} /> : null}

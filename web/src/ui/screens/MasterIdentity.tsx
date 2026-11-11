@@ -28,9 +28,6 @@ export function MasterIdentity({ v }: { v: Vals }) {
               <label style={css("display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:var(--mmuted)")}>{v.T.anaRenk}
                 <input onChange={v.onPriColor} type="color" defaultValue={v.pPri} style={css("width:70px;height:36px;border:1px solid var(--mline2);background:var(--minput);border-radius:8px;padding:2px")} />
               </label>
-              <label style={css("display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:var(--mmuted)")}>{v.T.vurguRenk}
-                <input onChange={v.onAccColor} type="color" defaultValue={v.pAcc} style={css("width:70px;height:36px;border:1px solid var(--mline2);background:var(--minput);border-radius:8px;padding:2px")} />
-              </label>
             </div>
             <button onClick={v.saveCompanyMaster} style={css("height:40px;border:none;border-radius:9px;background:var(--pri,#2a3180);color:#fff;font-size:14px;font-weight:700;cursor:pointer")}>{v.T.sirketBilgileriniKaydet}</button>
           </div>
