@@ -4,6 +4,7 @@ import { tx } from "../i18n";
 import { ACCEPT_ATTR, FMT_LABEL, STATUSES, uid } from "../domain/constants";
 import { parseShare, shareTotal } from "../domain/shares";
 import { ic } from "../ui/icons";
+import { ADD_OPTION } from "../domain/constants";
 /*IMPORTS*/
 
 export function buildDetail(c: Ctx): () => Vals {
@@ -29,7 +30,7 @@ export function buildDetail(c: Ctx): () => Vals {
         files: files.map((f, i) => ({
           name: f.name, ext: ((f.name || "").split(".").pop() || "").toUpperCase().slice(0, 4),
           meta: [f.size, f.at, f.by].filter(Boolean).join(" · "),
-          onDownload: () => app.download(f.name, f.url),
+          onDownload: () => app.download(f.name, f.url), canPreview: !!app.previewKind(f.name), onPreview: () => app.openPreview(f.name, f.url),
           canDelete: app.perm("files"), delTitle: tx("Dosyayı kaldır"),
           onDelete: () => app.removeFile(f.id, f.name),
         })),
@@ -60,7 +61,7 @@ export function buildDetail(c: Ctx): () => Vals {
       statusLabel: extFiles.length ? extFiles.length + tx(" dosya") : tx("Yüklenmedi"), statusStyle: pill(extFiles.length ? "ok" : "none"), iconStyle: iconBox(extFiles.length ? "ok" : "none"),
       files: extFiles.map(f => ({
         name: f.name, ext: ((f.name || "").split(".").pop() || "").toUpperCase().slice(0, 4), meta: [f.size, f.at, f.by].filter(Boolean).join(" · "),
-        onDownload: () => app.download(f.name, f.url), canDelete: app.perm("files"), delTitle: tx("Dosyayı kaldır"), onDelete: () => app.removeFile(f.id, f.name),
+        onDownload: () => app.download(f.name, f.url), canPreview: !!app.previewKind(f.name), onPreview: () => app.openPreview(f.name, f.url), canDelete: app.perm("files"), delTitle: tx("Dosyayı kaldır"), onDelete: () => app.removeFile(f.id, f.name),
       })),
       noFiles: !extFiles.length, emptyLabel: tx("Henüz dosya yüklenmedi."), emptyStyle: "font-size:12px;font-weight:700;padding:4px 2px;color:var(--muted)",
       pendingLabel: "", canUpload: app.perm("files"), acceptAttr: "*/*", multi: true, uploadLabel: extFiles.length ? tx("Dosya ekle") : tx("Dosya yükle"),
@@ -80,21 +81,23 @@ export function buildDetail(c: Ctx): () => Vals {
     const docProgStyle = "height:100%;border-radius:999px;transition:width .25s ease;width:" + docPct + "%;background:" + (docPct === 100 ? "var(--okdot)" : "var(--pri,#2a3180)");
     const docSetAll = (v) => () => app.setState(st => { const o = { ...(st.docOpen || {}) }; ["g:req", "g:opt", "g:ext", "d:ext"].concat(s.docTypes.map(d => "d:" + d.id)).forEach(k => { o[k] = v; }); return { docOpen: o }; });
 
-    const curAssigned = cur ? (cur.authorIds || []).map(id => s.authors.find(a => a.id === id)).filter(Boolean) : [];
+    const curAssigned = cur ? (cur.assignments || []) : [];
     const reqProfs = (s.professions || []).filter(pf => (s.profRequired || {})[pf] !== false);
     const detailAuthorSlots = cur ? (s.professions || []).map(pf => {
-      const pool = s.authors.filter(a => a.job === pf), selA = curAssigned.find(a => a.job === pf);
+      const pool = s.authors.filter(a => (a.jobs || []).indexOf(pf) > -1), selA0 = curAssigned.find(x => x.job === pf);
+      const selA = selA0 && s.authors.find(a => a.id === selA0.authorId);
       return {
-        prof: pf, profMark: (s.profRequired || {})[pf] !== false ? "*" : "", hasOpts: pool.length > 0, noOpts: !pool.length,
+        canAdd: c.canWriteRecords, prof: pf, profMark: (s.profRequired || {})[pf] !== false ? "*" : "", hasOpts: pool.length > 0, noOpts: !pool.length,
         opts: pool.map(a => ({ id: a.id, label: a.first + " " + a.last + (a.sicil ? " · " + a.sicil : "") })),
         value: selA ? selA.id : "",
         selStyle: "flex:1 1 220px;min-width:0;height:40px;border-radius:9px;padding:0 10px;font-size:13px;font-weight:700;background:var(--card);cursor:pointer;" + (selA || (s.profRequired || {})[pf] === false ? "border:1px solid var(--line);color:var(--ink)" : "border:1px solid var(--errline);color:var(--errtext)"),
         onPick: (e) => {
           if (!canWriteProjects) return app.toast(tx("Bu işlem için yetkiniz yok."));
           const v = e.target.value;
+          if (v === ADD_OPTION) { e.target.value = selA ? selA.id : ""; return app.goAddRecord("author", pf); }
           app.act(() => app.api.put("/projects/" + cur.id + "/authors", { job: pf, authorId: v }).then((r) => { if (r.result === "queued") app.toast(tx("Talep üst kademe onayına gönderildi.")); }));
         },
-        onAdd: () => { app.fd = {}; app.setState({ sheet: { type: "author" }, draft: { job: pf } }); },
+        onAdd: () => { app.fd = {}; app.setState({ sheet: { type: "author" }, draft: { jobs: [pf] } }); },
       };
     }) : [];
     const curMiss = cur ? app.authorMiss(cur) : [], profTotal = reqProfs.length;
@@ -106,7 +109,7 @@ export function buildDetail(c: Ctx): () => Vals {
       ...f, ext: (f.name.split(".").pop() || "").toUpperCase().slice(0, 4),
       meta: f.size + " · " + f.at + " · " + f.by,
       canDelete: app.perm("files"),
-      onDownload: () => app.download(f.name, f.url),
+      onDownload: () => app.download(f.name, f.url), canPreview: !!app.previewKind(f.name), onPreview: () => app.openPreview(f.name, f.url),
       onDelete: () => app.removeFile(f.id, f.name),
     })) : [];
     const curOwners = cur ? (cur.owners || []) : [];
@@ -206,6 +209,8 @@ export function buildDetail(c: Ctx): () => Vals {
             ada: val("inAda", cur.ada), parsel: val("inParsel", cur.parsel), status: val("inStatus", cur.status), note: val("inNote", cur.note),
           },
           contractorOptions: s.contractors.map(x => ({ id: x.id, title: x.title })),
+          canAddContractor: c.canWriteRecords,
+          onContractor: (e) => { if (e.target.value === ADD_OPTION) { e.target.value = (cur && cur.contractorId) || ""; app.goAddRecord("contractor"); } else app.fd[e.target.name] = e.target.value; },
           statusOptions: STATUSES.map(x => ({ id: x[0], label: tx(x[1]) })),
           onSave: async () => {
             const payload: any = {

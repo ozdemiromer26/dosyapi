@@ -5,14 +5,51 @@ use crate::model::*;
 use crate::password;
 use crate::ports::*;
 use crate::services::audit::Auditor;
-use crate::services::auth::lockout_seconds;
 use crate::services::settings::{
-    KEY_MASTER_HASH, KEY_MASTER_LOCK, KEY_MASTER_TOTP, KEY_MASTER_TOTP_STEP, LockState, Settings,
+    KEY_MASTER_DISABLED, KEY_MASTER_HASH, KEY_MASTER_LOCK, KEY_MASTER_TOTP, KEY_MASTER_TOTP_STEP,
+    LockState, MasterDisabled, Settings,
 };
+use serde::Serialize;
 use std::sync::Arc;
 
 pub const MASTER_TTL: i64 = 2 * 3600;
 pub const MASTER_IDLE: i64 = 30 * 60;
+
+/// Bu kadar ardışık hatalı denemeden sonra panel geçici olarak kilitlenir.
+pub const LOCK_AFTER: i64 = 5;
+
+/// Master girişinde kilit süresi başarısızlıkla üstel artar; 1 saatle sınırlıdır.
+fn lockout_seconds(failures: i64) -> i64 {
+    const LOCK_BASE_SECS: i64 = 60;
+    const LOCK_MAX_SECS: i64 = 3600;
+    if failures < LOCK_AFTER {
+        return 0;
+    }
+    let exponent = (failures - LOCK_AFTER).min(10) as u32;
+    (LOCK_BASE_SECS.saturating_mul(1 << exponent)).min(LOCK_MAX_SECS)
+}
+
+/// Giriş ekranının durumu: açık, hatalı denemeler yüzünden geçici kilitli ya da konsoldan
+/// devre dışı bırakılmış. Kilit ekranı bu bilgilerle çizilir.
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "state", rename_all = "camelCase")]
+pub enum MasterGate {
+    #[serde(rename_all = "camelCase")]
+    Open { remaining: i64 },
+    #[serde(rename_all = "camelCase")]
+    Locked {
+        until: i64,
+        failures: i64,
+        last_at: i64,
+        last_ip: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    Disabled {
+        since: i64,
+        last_at: i64,
+        last_ip: String,
+    },
+}
 
 #[derive(Debug)]
 pub struct MasterAuthenticated {
@@ -48,6 +85,33 @@ impl MasterService {
         Ok(self.hasher.verify(&hash, password))
     }
 
+    async fn disabled(&self) -> AppResult<Option<MasterDisabled>> {
+        self.settings.get_json(KEY_MASTER_DISABLED).await
+    }
+
+    /// Kilit ekranı için durum. Kimlik doğrulaması istemez; yalnızca zaman, sayı ve adres verir.
+    pub async fn gate(&self) -> AppResult<MasterGate> {
+        let lock = self.lock_state().await?;
+        if let Some(disabled) = self.disabled().await? {
+            return Ok(MasterGate::Disabled {
+                since: disabled.at,
+                last_at: lock.last_at,
+                last_ip: lock.last_ip,
+            });
+        }
+        if lock.locked_until > self.clock.now() {
+            return Ok(MasterGate::Locked {
+                until: lock.locked_until,
+                failures: lock.failures,
+                last_at: lock.last_at,
+                last_ip: lock.last_ip,
+            });
+        }
+        Ok(MasterGate::Open {
+            remaining: (LOCK_AFTER - lock.failures).max(1),
+        })
+    }
+
     pub async fn login(
         &self,
         password: &str,
@@ -60,28 +124,36 @@ impl MasterService {
                 retry_after_secs: s,
             })?;
         let now = self.clock.now();
-        let lock = self.lock_state().await?;
+        let mut lock = self.lock_state().await?;
+        lock.last_at = now;
+        lock.last_ip = meta.ip.chars().take(64).collect();
+        // Kapalı ya da kilitliyken şifre denenmez; yalnızca son deneme kaydedilir.
+        if self.disabled().await?.is_some() {
+            self.settings.set_json(KEY_MASTER_LOCK, &lock).await?;
+            return Err(AppError::Locked(
+                "Sistem paneli devre dışı bırakıldı.".into(),
+            ));
+        }
         if lock.locked_until > now {
-            return Err(AppError::RateLimited {
-                retry_after_secs: (lock.locked_until - now) as u64,
-            });
+            self.settings.set_json(KEY_MASTER_LOCK, &lock).await?;
+            return Err(AppError::Locked("Sistem paneli kilitli.".into()));
         }
         if password.chars().count() > password::MAX_LEN || !self.check_password(password).await? {
-            let failures = lock.failures + 1;
-            let until = now + lockout_seconds(failures);
-            self.settings
-                .set_json(
-                    KEY_MASTER_LOCK,
-                    &LockState {
-                        failures,
-                        locked_until: if until > now { until } else { 0 },
-                    },
-                )
-                .await?;
+            lock.failures += 1;
+            let until = now + lockout_seconds(lock.failures);
+            lock.locked_until = if until > now { until } else { 0 };
+            self.settings.set_json(KEY_MASTER_LOCK, &lock).await?;
             self.audit
                 .master(meta, "master.login_failed", "", "")
                 .await?;
-            return Err(AppError::validation("Master şifre hatalı."));
+            if lock.locked_until > now {
+                self.audit.master(meta, "master.locked", "", "").await?;
+                return Err(AppError::Locked("Sistem paneli kilitlendi.".into()));
+            }
+            return Err(AppError::validation(format!(
+                "Master şifre hatalı. {} deneme hakkınız kaldı.",
+                LOCK_AFTER - lock.failures
+            )));
         }
         if let Some(secret) = self.settings.get_secret(KEY_MASTER_TOTP).await? {
             let code = code.unwrap_or_default();
@@ -141,7 +213,10 @@ impl MasterService {
         if session.kind != SessionKind::Master {
             return Err(AppError::Unauthorized);
         }
-        if session.expires_at <= now || session.last_seen_at + session.idle_seconds <= now {
+        if session.expires_at <= now
+            || session.last_seen_at + session.idle_seconds <= now
+            || self.disabled().await?.is_some()
+        {
             self.sessions.delete(&token_hash).await?;
             return Err(AppError::Unauthorized);
         }
@@ -188,6 +263,46 @@ impl MasterService {
         self.audit
             .master(meta, "master.password_changed", "", "")
             .await
+    }
+
+    /// Sunucu konsolundan: paneli kapatır, açık master oturumlarını sonlandırır.
+    pub async fn disable(&self, meta: &RequestMeta) -> AppResult<()> {
+        if self.disabled().await?.is_none() {
+            self.settings
+                .set_json(
+                    KEY_MASTER_DISABLED,
+                    &MasterDisabled {
+                        at: self.clock.now(),
+                    },
+                )
+                .await?;
+        }
+        self.sessions.delete_kind(SessionKind::Master).await?;
+        self.audit.master(meta, "master.disabled", "", "").await
+    }
+
+    /// Sunucu konsolundan: kapatmayı, geçici kilidi ve deneme sayacını kaldırır.
+    /// Master şifre ve iki adımlı doğrulama değişmez.
+    pub async fn enable(&self, meta: &RequestMeta) -> AppResult<()> {
+        self.settings.remove(KEY_MASTER_DISABLED).await?;
+        self.settings
+            .set_json(KEY_MASTER_LOCK, &LockState::default())
+            .await?;
+        self.audit.master(meta, "master.enabled", "", "").await
+    }
+
+    /// Sunucu konsolundan: yeni master şifre; iki adımlı doğrulama, kilit ve oturumlar sıfırlanır.
+    /// Paneli kapatma (`master-disable`) bundan etkilenmez.
+    pub async fn console_reset(&self, new_password: &str, meta: &RequestMeta) -> AppResult<()> {
+        password::check(new_password, &[])?;
+        let hash = self.hasher.hash(new_password)?;
+        self.settings.set_json(KEY_MASTER_HASH, &hash).await?;
+        self.settings.remove(KEY_MASTER_TOTP).await?;
+        self.settings
+            .set_json(KEY_MASTER_LOCK, &LockState::default())
+            .await?;
+        self.sessions.delete_kind(SessionKind::Master).await?;
+        self.audit.master(meta, "master.reset", "", "").await
     }
 
     pub async fn totp_status(&self) -> AppResult<bool> {

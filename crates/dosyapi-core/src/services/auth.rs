@@ -16,9 +16,6 @@ pub const REMEMBER_TTL: i64 = 30 * 24 * 3600;
 pub const REMEMBER_IDLE: i64 = 7 * 24 * 3600;
 pub const RESET_TTL: i64 = 30 * 60;
 pub const INVITE_TTL: i64 = 72 * 3600;
-const LOCK_AFTER: i64 = 5;
-const LOCK_BASE_SECS: i64 = 60;
-const LOCK_MAX_SECS: i64 = 3600;
 
 pub const PURPOSE_RESET: &str = "reset";
 
@@ -47,13 +44,44 @@ pub struct RegisterInput {
     pub accepted_notice: bool,
 }
 
-/// Kilit süresi başarısızlıkla üstel artar; 1 saatle sınırlıdır.
-pub fn lockout_seconds(failures: i64) -> i64 {
-    if failures < LOCK_AFTER {
-        return 0;
+/// Art arda hatalı girişte kilit basamakları: 3 hatada 5 dk, 6'da 15 dk, 9'da 60 dk,
+/// 12'de süresiz (yalnızca sistem paneli açar). `None`: bu denemede yeni kilit yok;
+/// `Some(None)`: süresiz kilit; `Some(Some(s))`: `s` saniyelik kilit.
+pub fn lockout_for(failures: i64) -> Option<Option<i64>> {
+    match failures {
+        3 => Some(Some(5 * 60)),
+        6 => Some(Some(15 * 60)),
+        9 => Some(Some(60 * 60)),
+        n if n >= 12 => Some(None),
+        _ => None,
     }
-    let exponent = (failures - LOCK_AFTER).min(10) as u32;
-    (LOCK_BASE_SECS.saturating_mul(1 << exponent)).min(LOCK_MAX_SECS)
+}
+
+/// Kilitli hesaba gösterilecek ileti.
+pub fn lock_message(reason: LockReason, until: Option<Timestamp>, now: Timestamp) -> String {
+    let left = until.map(|u| (u - now).max(1));
+    let span = |secs: i64| {
+        let mins = (secs + 59) / 60;
+        if mins >= 120 {
+            format!("{} saat", (mins + 59) / 60)
+        } else {
+            format!("{mins} dakika")
+        }
+    };
+    match (reason, left) {
+        (LockReason::Master, Some(s)) => format!(
+            "Hesabınız sistem yöneticisi tarafından kilitlendi. Kalan süre: {}.",
+            span(s)
+        ),
+        (LockReason::Master, None) => {
+            "Hesabınız sistem yöneticisi tarafından kilitlendi. Yöneticinize başvurun.".into()
+        }
+        (_, Some(s)) => format!(
+            "Art arda hatalı şifre girildiği için hesabınız kilitlendi. Kalan süre: {}.",
+            span(s)
+        ),
+        (_, None) => "Art arda hatalı şifre girildiği için hesabınız süresiz kilitlendi. Kilidi sistem yöneticisi açabilir.".into(),
+    }
 }
 
 #[derive(Clone)]
@@ -136,21 +164,34 @@ impl AuthService {
             self.audit.anonymous(meta, "login.unknown", "").await?;
             return Err(AppError::InvalidCredentials);
         };
-        if let Some(until) = user.locked_until.filter(|u| *u > now) {
+        if user.lock_active(now) {
             self.hasher.burn(password);
-            return Err(AppError::RateLimited {
-                retry_after_secs: (until - now) as u64,
-            });
+            return Err(AppError::Locked(lock_message(
+                user.lock_reason,
+                user.locked_until,
+                now,
+            )));
         }
         if !self.hasher.verify(&user.password_hash, password) {
             let failed = user.failed_logins + 1;
-            let lock = lockout_seconds(failed);
-            let until = (lock > 0).then_some(now + lock);
-            self.users.set_login_state(&user.id, failed, until).await?;
             self.audit
                 .user_at(&user.id, meta, "login.failed", "")
                 .await?;
-            return Err(AppError::InvalidCredentials);
+            let Some(lock) = lockout_for(failed) else {
+                self.users
+                    .set_login_state(&user.id, failed, LockReason::None, None)
+                    .await?;
+                return Err(AppError::InvalidCredentials);
+            };
+            let until = lock.map(|secs| now + secs);
+            self.users
+                .set_login_state(&user.id, failed, LockReason::Auto, until)
+                .await?;
+            let detail = until.map_or("süresiz".to_string(), |u| format!("{} sn", u - now));
+            self.audit
+                .user_at(&user.id, meta, "login.locked", &detail)
+                .await?;
+            return Err(AppError::Locked(lock_message(LockReason::Auto, until, now)));
         }
         if user.status == UserStatus::Pending {
             return Err(AppError::conflict(
@@ -177,7 +218,9 @@ impl AuthService {
                 return Err(AppError::InvalidCredentials);
             }
         }
-        self.users.set_login_state(&user.id, 0, None).await?;
+        self.users
+            .set_login_state(&user.id, 0, LockReason::None, None)
+            .await?;
         self.audit
             .user_at(&user.id, meta, "login.success", "")
             .await?;
@@ -228,6 +271,7 @@ impl AuthService {
             totp_secret: None,
             totp_enabled: false,
             failed_logins: 0,
+            lock_reason: LockReason::None,
             locked_until: None,
             notice_accepted_at: notice_required.then_some(now),
             created_at: now,
@@ -325,7 +369,16 @@ impl AuthService {
         password::check(new_password, &[&user.email, &user.name])?;
         let new_hash = self.hasher.hash(new_password)?;
         self.users.set_password(&user.id, &new_hash, false).await?;
-        self.users.set_login_state(&user.id, 0, None).await?;
+        // Sıfırlama süreli otomatik kilidi kaldırır; süresiz kilit ve yönetici yasağı ise
+        // yalnızca sistem panelinden kalkar (şifreyi bilen saldırgan da sıfırlayamaz).
+        let now = self.clock.now();
+        let keep = user.lock_active(now)
+            && (user.lock_reason == LockReason::Master || user.locked_until.is_none());
+        if !keep {
+            self.users
+                .set_login_state(&user.id, 0, LockReason::None, None)
+                .await?;
+        }
         self.sessions.delete_for_user(&user.id, None).await?;
         self.audit
             .user_at(&user.id, meta, "password.reset", "")
@@ -389,7 +442,9 @@ impl AuthService {
             .get(user_id)
             .await?
             .ok_or(AppError::Unauthorized)?;
-        if user.status != UserStatus::Active {
+        if user.status != UserStatus::Active
+            || (user.lock_reason == LockReason::Master && user.lock_active(now))
+        {
             return Err(AppError::Unauthorized);
         }
         let role_id = user.role_id.as_deref().ok_or(AppError::Unauthorized)?;
@@ -612,7 +667,8 @@ fn recovery_hash(user_id: &str, normalized: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{lockout_seconds, recovery_hash, recovery_shape};
+    use super::{lock_message, lockout_for, recovery_hash, recovery_shape};
+    use crate::model::LockReason;
 
     #[test]
     fn recovery_codes_are_normalized_and_bound_to_user() {
@@ -636,10 +692,22 @@ mod tests {
     }
 
     #[test]
-    fn lockout_grows_and_is_bounded() {
-        assert_eq!(lockout_seconds(4), 0);
-        assert_eq!(lockout_seconds(5), 60);
-        assert_eq!(lockout_seconds(6), 120);
-        assert_eq!(lockout_seconds(50), 3600);
+    fn lockout_steps() {
+        assert_eq!(lockout_for(1), None);
+        assert_eq!(lockout_for(2), None);
+        assert_eq!(lockout_for(3), Some(Some(300)));
+        assert_eq!(lockout_for(4), None);
+        assert_eq!(lockout_for(6), Some(Some(900)));
+        assert_eq!(lockout_for(9), Some(Some(3600)));
+        assert_eq!(lockout_for(12), Some(None));
+        assert_eq!(lockout_for(40), Some(None));
+    }
+
+    #[test]
+    fn lock_messages_round_up() {
+        assert!(lock_message(LockReason::Auto, Some(1_000 + 299), 1_000).contains("5 dakika"));
+        assert!(lock_message(LockReason::Auto, None, 0).contains("süresiz"));
+        assert!(lock_message(LockReason::Master, Some(3 * 3600), 0).contains("3 saat"));
+        assert!(lock_message(LockReason::Master, None, 0).contains("yöneticisi"));
     }
 }

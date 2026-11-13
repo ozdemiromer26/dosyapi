@@ -117,9 +117,46 @@ pub struct User {
     pub totp_secret: Option<String>,
     pub totp_enabled: bool,
     pub failed_logins: i64,
+    pub lock_reason: LockReason,
+    /// Kilidin bittiği an; kilit varken `None` süresiz demektir.
     pub locked_until: Option<Timestamp>,
     pub notice_accepted_at: Option<Timestamp>,
     pub created_at: Timestamp,
+}
+
+/// Hesap kilidinin kaynağı.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum LockReason {
+    None,
+    /// Art arda hatalı şifre girişi.
+    Auto,
+    /// Sistem panelinden verilen yasak.
+    Master,
+}
+
+impl LockReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "",
+            Self::Auto => "auto",
+            Self::Master => "master",
+        }
+    }
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "auto" => Self::Auto,
+            "master" => Self::Master,
+            _ => Self::None,
+        }
+    }
+}
+
+impl User {
+    /// Kilit şu an geçerli mi? Süreli kilit süresi dolunca kendiliğinden kalkar.
+    pub fn lock_active(&self, now: Timestamp) -> bool {
+        self.lock_reason != LockReason::None && self.locked_until.is_none_or(|u| u > now)
+    }
 }
 
 /// Kimliği doğrulanmış kullanıcı ve o anki rolü. Yetki kararlarının tek girdisi.
@@ -264,7 +301,8 @@ pub struct Project {
     pub photo_at: Timestamp,
     #[serde(skip)]
     pub photo_mime: String,
-    pub author_ids: Vec<Id>,
+    /// Meslek bazlı müellif atamaları (meslek başına bir müellif).
+    pub assignments: Vec<AuthorAssignment>,
     pub owners: Vec<Owner>,
     pub proxy: Proxy,
     pub created_at: Timestamp,
@@ -318,7 +356,8 @@ pub struct Author {
     pub last: String,
     pub phone: String,
     pub company: String,
-    pub job: String,
+    /// Bir müellifin birden çok mesleği olabilir (ör. mimar ve şehir plancısı).
+    pub jobs: Vec<String>,
     pub sicil: String,
     pub address: String,
 }
@@ -335,11 +374,19 @@ pub struct AuthorInput {
     pub phone: String,
     #[serde(default)]
     pub company: String,
-    pub job: String,
+    pub jobs: Vec<String>,
     #[serde(default)]
     pub sicil: String,
     #[serde(default)]
     pub address: String,
+}
+
+/// Projede bir mesleğe atanmış müellif.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthorAssignment {
+    pub job: String,
+    pub author_id: Id,
 }
 
 impl Author {
@@ -350,7 +397,7 @@ impl Author {
             last: self.last.clone(),
             phone: self.phone.clone(),
             company: self.company.clone(),
-            job: self.job.clone(),
+            jobs: self.jobs.clone(),
             sicil: self.sicil.clone(),
             address: self.address.clone(),
         }

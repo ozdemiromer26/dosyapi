@@ -25,7 +25,7 @@ function initialState() {
     gen: null, genBusy: "", tplDraft: null, tplMode: "edit", tplDirty: false, edPop: null, edInTable: false, edImg: false,
     tplSide: "vars", tplSample: "", varQ: "", zoom: { gen: "fit", tpl: "fit" }, zoomLbl: {}, varOpen: { genel: true, proje: true },
     tbCols: { muellifler: ["sira", "adSoyad", "meslek", "tc", "telefon"], arsaSahipleri: ["sira", "ad", "tc", "hisse", "imza"] },
-    noticeAccepted: false, privacyNotice: "", undo: null, updateInfo: null, backups: [], audit: [], auditOk: null, dns: null, dnsChecks: [], smtp: null, totpSetup: null, masterTotpSetup: null, recoveryCodes: null, unreadMessages: 0, setupDone: null, busy: "",
+    noticeAccepted: false, privacyNotice: "", undo: null, updateInfo: null, backups: null, backupChecks: {}, masterGate: null, audit: [], auditOk: null, dns: null, dnsChecks: [], smtp: null, totpSetup: null, masterTotpSetup: null, recoveryCodes: null, unreadMessages: 0, setupDone: null, busy: "",
   };
 }
 
@@ -100,6 +100,7 @@ export class AppCore extends React.Component<any, any> {
   /** Esc en üstteki katmanı kapatır: menü, form, belge penceresi, açılır listeler. */
   closeTopLayer() {
     const s = this.state;
+    if (s.preview) return this.closePreview();
     if (s.rbMenu) return this.setState({ rbMenu: null });
     if (s.sheet) { this.fd = {}; return this.setState({ sheet: null, draft: {} }); }
     if (s.gen) return this.setState({ gen: null });
@@ -268,6 +269,20 @@ export class AppCore extends React.Component<any, any> {
       await this.loadMaster();
     } catch (e) {
       this.setState({ masterAuthed: false });
+      await this.loadGate();
+    }
+  }
+
+  /** Giriş ekranı durumu: açık, geçici kilitli ya da konsoldan devre dışı. */
+  async loadGate() {
+    clearTimeout(this._gateT);
+    let gate = null;
+    try { gate = await this.api.get("/master/gate"); } catch (e) {}
+    this.setState({ masterGate: gate });
+    // Kilitliyken geri sayım dakikada bir tazelenir; süre dolunca giriş formu kendiliğinden açılır.
+    if (gate && gate.state === "locked") {
+      const wait = Math.max(1000, Math.min(gate.until * 1000 - Date.now() + 1000, 60000));
+      this._gateT = setTimeout(() => { if (this.state.mode === "master" && !this.state.masterAuthed) this.loadGate(); }, wait);
     }
   }
 
@@ -404,6 +419,7 @@ export class AppCore extends React.Component<any, any> {
       await this.loadMaster();
     } catch (e) {
       if (e.code === "totp_required") return this.setState({ masterTotpNeeded: true, masterError: "" });
+      if (e.status === 423) { this.setState({ masterError: "", masterTotpNeeded: false }); return this.loadGate(); }
       this.setState({ masterError: tx(e.message) });
     }
   }
@@ -412,7 +428,7 @@ export class AppCore extends React.Component<any, any> {
     try { await this.api.post("/master/logout", {}); } catch (e) {}
     this.fd = {};
     this.api.csrf = "";
-    this.setState({ ...emptyDomain(), company: this.state.company, palette: this.state.palette, mode: "auth", masterAuthed: false, masterError: "", dns: null, smtp: null, updateInfo: null, audit: [] });
+    this.setState({ ...emptyDomain(), company: this.state.company, palette: this.state.palette, mode: "auth", masterAuthed: false, masterError: "", masterGate: null, backups: null, backupChecks: {}, dns: null, smtp: null, updateInfo: null, audit: [] });
     window.location.hash = "";
     await this.start();
   }
@@ -523,6 +539,51 @@ export class AppCore extends React.Component<any, any> {
     Array.prototype.slice.call(arguments).forEach(n => { delete this.fd[n]; if (this.r[n]) this.r[n].value = ""; });
   }
 
+  /** Proje formundaki listelerin sonundaki "+ ekle": Kayıtlar'a gider ve yeni kayıt penceresini açar. */
+  goAddRecord(kind: "author" | "contractor", job?: string) {
+    this.fd = {};
+    this.setState({ tab: "records", recTab: kind === "author" ? "authors" : "contractors", notifOpen: false,
+      sheet: { type: kind }, draft: kind === "author" && job ? { jobs: [job] } : {} });
+  }
+
+  /** Önizlenebilir tür: tarayıcının güvenle gösterebildikleri. Tür, sunucunun ikili olarak
+   *  verdiği içerikten değil dosya adından belirlenir ve blob'a açıkça yazılır. */
+  previewKind(name) {
+    const ext = ((name || "").split(".").pop() || "").toLowerCase();
+    if (ext === "pdf") return "pdf";
+    if (["png", "jpg", "jpeg", "webp", "gif"].indexOf(ext) > -1) return "image";
+    if (["txt", "csv"].indexOf(ext) > -1) return "text";
+    return null;
+  }
+  async openPreview(name, url) {
+    const kind = this.previewKind(name);
+    if (!kind || !url) return this.download(name, url);
+    this.closePreview();
+    this.setState({ preview: { name, url, kind, src: "", text: "", error: "" } });
+    const fail = (error) => { if (this.state.preview && this.state.preview.url === url) this.setState({ preview: { ...this.state.preview, error } }); };
+    try {
+      const res = await fetch(url, { credentials: "same-origin" });
+      if (!res.ok) return fail(res.status === 401 ? tx("Oturum süresi doldu.") : tx("Dosya açılamadı."));
+      const len = Number(res.headers.get("content-length") || 0);
+      if (len > 60 * 1024 * 1024) return fail(tx("Dosya önizleme için çok büyük; indirerek açın."));
+      const buf = await res.arrayBuffer();
+      if (!this.state.preview || this.state.preview.url !== url) return;
+      if (kind === "text") {
+        const text = new TextDecoder().decode(buf.slice(0, 400 * 1024));
+        return this.setState({ preview: { ...this.state.preview, text } });
+      }
+      const ext = (name.split(".").pop() || "").toLowerCase();
+      const type = kind === "pdf" ? "application/pdf" : "image/" + (ext === "jpg" ? "jpeg" : ext);
+      const src = URL.createObjectURL(new Blob([buf], { type }));
+      this._previewUrl = src;
+      this.setState({ preview: { ...this.state.preview, src } });
+    } catch (e) { fail(tx("Dosya açılamadı.")); }
+  }
+  closePreview() {
+    if (this._previewUrl) { URL.revokeObjectURL(this._previewUrl); this._previewUrl = null; }
+    if (this.state.preview) this.setState({ preview: null });
+  }
+
   download(name, url) {
     if (!name) return this.toast(tx("İndirilecek dosya yok."));
     const a = document.createElement("a");
@@ -558,7 +619,7 @@ export class AppCore extends React.Component<any, any> {
   docRows(kind, o) {
     const s = this.state;
     if (kind === "project") {
-      const names = (o.authorIds || []).map(id => { const a = s.authors.find(x => x.id === id); return a ? a.first + " " + a.last + " (" + a.job + ")" : ""; }).filter(Boolean);
+      const names = (o.assignments || []).map(x => { const a = s.authors.find(y => y.id === x.authorId); return a ? a.first + " " + a.last + " (" + x.job + ")" : ""; }).filter(Boolean);
       const docs = s.docTypes.map(d => d.name + ": " + ((o.docs || {})[d.id] ? tx("var") : d.required ? tx("EKSİK") : "—")).join(", ");
       return [
         { k: tx("İnşaat adı"), v: o.name }, { k: tx("Müteahhit firma"), v: o.contractor },
@@ -572,7 +633,7 @@ export class AppCore extends React.Component<any, any> {
     }
     if (kind === "author") return [
       { k: tx("TC Kimlik No"), v: o.tc }, { k: tx("Ad Soyad"), v: o.first + " " + o.last },
-      { k: tx("Meslek"), v: o.job }, { k: tx("Şirket"), v: o.company }, { k: tx("Telefon"), v: o.phone },
+      { k: tx("Meslek"), v: (o.jobs || []).join(", ") }, { k: tx("Şirket"), v: o.company }, { k: tx("Telefon"), v: o.phone },
     ];
     return [
       { k: tx("Firma unvanı"), v: o.title }, { k: tx("Yetkili"), v: o.owner },
@@ -589,7 +650,7 @@ export class AppCore extends React.Component<any, any> {
 
   printAuthorTable(list, subtitle) {
     if (!list.length) { this.toast(tx("Yazdırmak için müellif seçin.")); return; }
-    const rows = list.map((a, i) => '<tr><td style="padding:9px 6px;border-bottom:1px solid #e4e4e7;font-size:12px">' + (i + 1) + '</td><td style="padding:9px 6px;border-bottom:1px solid #e4e4e7;font-size:13px;font-weight:600">' + esc(a.first + " " + a.last) + '</td><td style="padding:9px 6px;border-bottom:1px solid #e4e4e7;font-size:12px">' + esc(a.job) + '</td><td style="padding:9px 6px;border-bottom:1px solid #e4e4e7;font-size:12px">' + esc(a.tc) + '</td><td style="padding:9px 6px;border-bottom:1px solid #e4e4e7;font-size:12px">' + esc(a.company) + '</td><td style="padding:9px 6px;border-bottom:1px solid #e4e4e7;font-size:12px">' + esc(a.phone) + '</td></tr>').join("");
+    const rows = list.map((a, i) => '<tr><td style="padding:9px 6px;border-bottom:1px solid #e4e4e7;font-size:12px">' + (i + 1) + '</td><td style="padding:9px 6px;border-bottom:1px solid #e4e4e7;font-size:13px;font-weight:600">' + esc(a.first + " " + a.last) + '</td><td style="padding:9px 6px;border-bottom:1px solid #e4e4e7;font-size:12px">' + esc((a.jobs || []).join(", ")) + '</td><td style="padding:9px 6px;border-bottom:1px solid #e4e4e7;font-size:12px">' + esc(a.tc) + '</td><td style="padding:9px 6px;border-bottom:1px solid #e4e4e7;font-size:12px">' + esc(a.company) + '</td><td style="padding:9px 6px;border-bottom:1px solid #e4e4e7;font-size:12px">' + esc(a.phone) + '</td></tr>').join("");
     this.printWindow(tx("Yapı Denetim Müellif Listesi"), '<div style="font-size:12px;color:#646464;margin-top:14px">' + esc(subtitle) + '</div><table style="width:100%;border-collapse:collapse;margin-top:12px"><thead><tr><th style="text-align:left;padding:8px 6px;font-size:10.5px;letter-spacing:.5px;color:#646464;border-bottom:2px solid #202020">#</th><th style="text-align:left;padding:8px 6px;font-size:10.5px;letter-spacing:.5px;color:#646464;border-bottom:2px solid #202020">' + tx("AD SOYAD") + '</th><th style="text-align:left;padding:8px 6px;font-size:10.5px;letter-spacing:.5px;color:#646464;border-bottom:2px solid #202020">' + tx("MESLEK") + '</th><th style="text-align:left;padding:8px 6px;font-size:10.5px;letter-spacing:.5px;color:#646464;border-bottom:2px solid #202020">' + tx("TC NO") + '</th><th style="text-align:left;padding:8px 6px;font-size:10.5px;letter-spacing:.5px;color:#646464;border-bottom:2px solid #202020">' + tx("ŞİRKET") + '</th><th style="text-align:left;padding:8px 6px;font-size:10.5px;letter-spacing:.5px;color:#646464;border-bottom:2px solid #202020">' + tx("TELEFON") + '</th></tr></thead><tbody>' + rows + '</tbody></table>');
   }
 

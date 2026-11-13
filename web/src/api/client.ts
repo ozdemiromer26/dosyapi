@@ -59,6 +59,17 @@ export class ApiClient {
   raw(method: string, path: string, body: Blob) {
     return this.send(method, path, { headers: this.headers({ "Content-Type": "application/octet-stream" }), body });
   }
+  /** İkili yanıt döndüren POST (ör. anahtar dosyası indirme). */
+  async postBlob(path: string, body: unknown = {}): Promise<Blob> {
+    let response: Response;
+    try {
+      response = await fetch(BASE + path, { method: "POST", credentials: "same-origin", headers: this.headers({ "Content-Type": "application/json" }), body: JSON.stringify(body) });
+    } catch {
+      throw new ApiError(0, "network", "Sunucuya ulaşılamadı.");
+    }
+    if (!response.ok) return this.parse(response);
+    return response.blob();
+  }
   upload(path: string, body: Blob) {
     return this.raw("POST", path, body);
   }

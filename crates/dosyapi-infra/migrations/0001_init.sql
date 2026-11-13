@@ -28,7 +28,10 @@ CREATE TABLE users (
     totp_enabled         INTEGER NOT NULL DEFAULT 0,
     -- Son kabul edilen TOTP zaman adımı; aynı kod (ve daha eskisi) ikinci kez geçmez.
     totp_last_step       INTEGER NOT NULL DEFAULT 0,
+    -- Ardışık hatalı giriş sayısı; başarılı girişte ya da kilit kaldırılınca sıfırlanır.
     failed_logins        INTEGER NOT NULL DEFAULT 0,
+    -- Kilit: '' yok, 'auto' hatalı girişler, 'master' sistem paneli. locked_until NULL ise süresiz.
+    lock_reason          TEXT NOT NULL DEFAULT '' CHECK (lock_reason IN ('', 'auto', 'master')),
     locked_until         INTEGER,
     notice_accepted_at   INTEGER,
     created_at           INTEGER NOT NULL
@@ -79,7 +82,7 @@ CREATE TABLE authors (
     last        TEXT NOT NULL,
     phone_enc   BLOB,
     company     TEXT NOT NULL DEFAULT '',
-    job         TEXT NOT NULL,
+    jobs        TEXT NOT NULL DEFAULT '[]',
     sicil       TEXT NOT NULL DEFAULT '',
     address_enc BLOB
 );
@@ -113,11 +116,13 @@ CREATE TABLE projects (
     updated_at INTEGER NOT NULL
 );
 
+-- Projede her meslek için bir müellif; aynı müellif birden çok meslekte yer alabilir.
 CREATE TABLE project_authors (
     project_id TEXT NOT NULL REFERENCES projects (id) ON DELETE CASCADE,
+    job        TEXT NOT NULL,
     author_id  TEXT NOT NULL REFERENCES authors (id) ON DELETE CASCADE,
     position   INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (project_id, author_id)
+    PRIMARY KEY (project_id, job)
 );
 
 CREATE TABLE files (

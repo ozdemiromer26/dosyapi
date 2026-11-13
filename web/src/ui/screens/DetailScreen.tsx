@@ -61,8 +61,9 @@ function InfoCard({ v }: { v: Vals }) {
             <div style={css(i.spanAll)}>{label(v.T.insaatAdi, "inName")}{input("inName", i.form.name)}</div>
             <div style={css(i.spanAll)}>
               {label(v.T.muteahhit, "inContractor")}
-              <select id="inContractor" name="inContractor" onChange={v.onField} defaultValue={i.form.contractorId} style={css("width:100%;height:40px;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:0 10px;font-size:14px;font-weight:600;color:var(--ink)")}>
+              <select id="inContractor" name="inContractor" onChange={i.onContractor} defaultValue={i.form.contractorId} style={css("width:100%;height:40px;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:0 10px;font-size:14px;font-weight:600;color:var(--ink)")}>
                 {(i.contractorOptions || []).map((o: any) => <option key={o.id} value={o.id}>{o.title}</option>)}
+                {i.canAddContractor ? <><option disabled value="">──────────</option><option value="__add__">{v.T.muteahhitEkleArti}</option></> : null}
               </select>
             </div>
             <div style={css(i.spanHalf)}>{label(v.T.mahalle, "inMahalle")}{input("inMahalle", i.form.mahalle)}</div>
@@ -294,6 +295,7 @@ export function DetailScreen({ v }: { v: Vals }) {
                           {(a.opts || []).map((o: any, i34: number) => (<React.Fragment key={o?.id ?? o?.key ?? i34}>
                             <option value={o.id}>{o.label}</option>
                           </React.Fragment>))}
+                          {a.canAdd ? <><option disabled value="">──────────</option><option value="__add__">{v.T.muellifEkleArti}</option></> : null}
                         </select>
                       </>) : null}
                       {a.noOpts ? (<>
@@ -359,6 +361,7 @@ export function DetailScreen({ v }: { v: Vals }) {
                                         <div style={css("font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis")}>{f.name}</div>
                                         <div style={st.caption}>{f.meta}</div>
                                       </div>
+                                      {f.canPreview ? <button onClick={f.onPreview} aria-label={v.T.onizle} title={v.T.onizle} style={css("flex:none;width:30px;height:28px;padding:0;border:1px solid var(--line);background:var(--card);border-radius:7px;color:var(--brandink);cursor:pointer;display:flex;align-items:center;justify-content:center")}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg></button> : null}
                                       <button onClick={f.onDownload} style={css("flex:none;height:28px;padding:0 9px;border:1px solid var(--line);background:var(--card);border-radius:7px;font-size:12px;font-weight:700;color:var(--ink);cursor:pointer")}>{v.T.indir}</button>
                                       {f.canDelete ? (<>
                                         <button onClick={f.onDelete} title={f.delTitle} style={css("flex:none;width:28px;height:28px;padding:0;border:1px solid var(--errline);background:var(--err);border-radius:7px;font-size:14px;font-weight:700;color:var(--errtext);cursor:pointer")}>×</button>

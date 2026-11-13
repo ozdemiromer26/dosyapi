@@ -232,6 +232,7 @@ impl UserService {
             totp_secret: None,
             totp_enabled: false,
             failed_logins: 0,
+            lock_reason: LockReason::None,
             locked_until: None,
             notice_accepted_at: None,
             created_at: self.clock.now(),
@@ -285,6 +286,37 @@ impl UserService {
         self.audit.master(meta, "user.reset_link", id, "").await?;
         self.deliver_link(&user.email, &user.name, link, "Şifre sıfırlama")
             .await
+    }
+
+    /// Sistem panelinden yasak: `minutes` yoksa süresiz. Açık oturumlar hemen kapanır.
+    pub async fn master_lock(
+        &self,
+        id: &str,
+        minutes: Option<i64>,
+        meta: &RequestMeta,
+    ) -> AppResult<()> {
+        let user = self.users.get(id).await?.ok_or(AppError::NotFound)?;
+        if minutes.is_some_and(|m| !(1..=366 * 24 * 60).contains(&m)) {
+            return Err(AppError::validation(
+                "Kilit süresi 1 dakika ile 1 yıl arasında olmalı.",
+            ));
+        }
+        let until = minutes.map(|m| self.clock.now() + m * 60);
+        self.users
+            .set_login_state(id, user.failed_logins, LockReason::Master, until)
+            .await?;
+        self.sessions.delete_for_user(id, None).await?;
+        let detail = minutes.map_or("süresiz".to_string(), |m| format!("{m} dk"));
+        self.audit.master(meta, "user.locked", id, &detail).await
+    }
+
+    /// Kilidi (otomatik ya da yönetici) kaldırır ve hatalı giriş sayacını sıfırlar.
+    pub async fn master_unlock(&self, id: &str, meta: &RequestMeta) -> AppResult<()> {
+        self.users.get(id).await?.ok_or(AppError::NotFound)?;
+        self.users
+            .set_login_state(id, 0, LockReason::None, None)
+            .await?;
+        self.audit.master(meta, "user.unlocked", id, "").await
     }
 
     pub async fn master_clear_totp(&self, id: &str, meta: &RequestMeta) -> AppResult<()> {

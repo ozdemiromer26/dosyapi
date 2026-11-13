@@ -1,7 +1,7 @@
 import { st } from "../styles";
 import React from "react";
 import { css } from "../css";
-import { PoweredBy, NoteBox } from "../parts";
+import { PoweredBy, NoteBox, MultiSelect } from "../parts";
 import type { Vals } from "../../vm/types";
 
 const OW_FIELD = "min-width:0;height:38px;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:0 10px;font-size:13px;font-weight:600;color:var(--ink)";
@@ -51,7 +51,7 @@ function OwnerRow({ o, v }: { o: any; v: Vals }) {
 export function Sheets({ v }: { v: Vals }) {
   return (
     <>
-    <div style={css("position:fixed;inset:0;background:rgba(16,16,24,.45);z-index:60;display:flex;align-items:" + (v.sheetIsMenu ? "flex-start" : "center") + ";justify-content:center;padding:18px;overflow-y:auto")}>
+    <div style={css("position:fixed;inset:0;background:rgba(16,16,24,.45);z-index:60;display:flex;align-items:center;justify-content:center;padding:18px;overflow-y:auto")}>
       <div ref={v.dialogRef} role="dialog" aria-modal="true" aria-label={v.sheetTitle} tabIndex={-1} onKeyDown={v.dialogKeys} style={css("outline:none;width:100%;max-width:520px;background:var(--card);border-radius:18px;display:flex;flex-direction:column;max-height:92vh;animation:sheetIn .22s ease;box-shadow:0 20px 50px rgba(0,0,0,.3)")}>
         <div style={css("flex:none;padding:15px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line2)")}>
           <div style={css("flex:1;font-size:16px;font-weight:800")}>{v.sheetTitle}</div>
@@ -63,11 +63,12 @@ export function Sheets({ v }: { v: Vals }) {
             <div style={st.stack11}>
               {v.sheetIsProject ? (<>
               <input name="prName" onChange={v.onField} defaultValue={v.draft.name} placeholder={v.T.insaatAdi} style={st.field} />
-              <select name="prContractor" onChange={v.onField} defaultValue={v.draft.contractorId} style={st.fieldButton}>
+              <select name="prContractor" onChange={v.onPrContractor} defaultValue={v.draft.contractorId} style={st.fieldButton}>
                 <option value="">{v.T.muteahhitSec}</option>
                 {(v.contractorOptions || []).map((c: any, i89: number) => (<React.Fragment key={c?.id ?? c?.key ?? i89}>
                   <option value={c.id}>{c.title}</option>
                 </React.Fragment>))}
+                {v.canAddContractor ? <><option disabled value="">──────────</option><option value="__add__">{v.T.muteahhitEkleArti}</option></> : null}
               </select>
               <input name="prMahalle" onChange={v.onField} defaultValue={v.draft.mahalle} placeholder={v.T.mahalle} style={st.field} />
               <input name="prStreet" onChange={v.onField} defaultValue={v.draft.street} placeholder={v.T.caddeSokakVeKapi} style={st.field} />
@@ -130,12 +131,8 @@ export function Sheets({ v }: { v: Vals }) {
               <input name="auCompany" onChange={v.onField} defaultValue={v.draft.company} placeholder={v.T.sirket} style={st.field} />
               <input name="auSicil" onChange={v.onField} defaultValue={v.draft.sicil} placeholder={v.T.odaSicilNo} style={st.field} />
               <input name="auAddress" onChange={v.onField} defaultValue={v.draft.address} placeholder={v.T.adresPh} style={st.field} />
-              <select name="auJob" onChange={v.onField} defaultValue={v.draft.job} style={st.fieldButton}>
-                <option value="">{v.T.meslekSec}</option>
-                {(v.professionOptions || []).map((p: any, i92: number) => (<React.Fragment key={p?.id ?? p?.key ?? i92}>
-                  <option value={p.name}>{p.name}</option>
-                </React.Fragment>))}
-              </select>
+              <MultiSelect label={v.T.meslekler} placeholder={v.T.meslekSec} value={v.draft.jobs || []}
+                options={(v.professionOptions || []).map((p: any) => p.name)} onChange={v.onAuJobs} />
               {v.needsApproval ? (<>
                 <NoteBox tone="info" extra="font-size:12px">{v.T.kayitUstKademeOnayina}</NoteBox>
               </>) : null}

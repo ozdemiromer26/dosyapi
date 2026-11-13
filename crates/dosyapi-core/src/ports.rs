@@ -31,6 +31,7 @@ pub trait UserRepo: Send + Sync {
         &self,
         id: &str,
         failed: i64,
+        reason: LockReason,
         locked_until: Option<Timestamp>,
     ) -> AppResult<()>;
     /// Kapatılırken (`enabled = false`) son adım sıfırlanır ve kurtarma kodları silinir.
@@ -91,7 +92,7 @@ pub trait ProjectRepo: Send + Sync {
     async fn insert(&self, project: &Project) -> AppResult<()>;
     async fn update(&self, project: &Project) -> AppResult<()>;
     async fn delete(&self, id: &str) -> AppResult<()>;
-    async fn set_authors(&self, id: &str, author_ids: &[Id]) -> AppResult<()>;
+    async fn set_authors(&self, id: &str, assignments: &[AuthorAssignment]) -> AppResult<()>;
     async fn uses_contractor(&self, contractor_id: &str) -> AppResult<bool>;
     /// Fotoğraf türünü ve zamanını yazar; boş tür fotoğrafın kaldırıldığını belirtir.
     async fn set_photo(&self, id: &str, mime: &str, at: Timestamp) -> AppResult<()>;
@@ -440,18 +441,47 @@ pub trait UpdateInstaller: Send + Sync {
     async fn status(&self) -> AppResult<Option<UpdateJobStatus>>;
 }
 
+/// Tam yedek: veritabanı ve dosyalar tek dosyada, `secret.key`'den türetilen anahtarla
+/// şifreli ve doğrulanabilir. Anahtar yedeğe girmez; ayrıca saklanır.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupInfo {
     pub name: String,
     pub size: u64,
     pub at: Timestamp,
+    /// otomatik, elle, konsol, guncelleme-oncesi, sifirlama-oncesi
+    pub label: String,
+    /// Başlık okunamadı ya da başka bir anahtarla alınmış: bu sunucuda açılamaz.
+    pub foreign: bool,
+}
+
+/// Bütünlük denetiminin sonucu. `ok` yalnızca her bayt doğrulandıysa ve veritabanı
+/// sağlamsa doğrudur.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupReport {
+    pub ok: bool,
+    pub message: String,
+    pub created_at: Timestamp,
+    pub version: String,
+    pub db_bytes: u64,
+    pub files: u64,
+    pub files_bytes: u64,
+    /// Veritabanında kaydı olup yedekte bulunmayan dosya sayısı.
+    pub missing: u64,
 }
 
 #[async_trait]
 pub trait BackupService: Send + Sync {
     async fn create(&self, label: &str) -> AppResult<BackupInfo>;
     async fn list(&self) -> AppResult<Vec<BackupInfo>>;
+    async fn verify(&self, name: &str) -> AppResult<BackupReport>;
+    async fn open(&self, name: &str) -> AppResult<(BackupInfo, Box<dyn FileSource>)>;
+    async fn delete(&self, name: &str) -> AppResult<()>;
+    /// Bu etiketteki yedeklerden en yeni `keep` tanesi dışındakileri siler.
+    async fn prune(&self, label: &str, keep: usize) -> AppResult<usize>;
+    /// Ana anahtar dosyasının içeriği (geri yükleme için gereken ikinci dosya).
+    async fn secret_key(&self) -> AppResult<Vec<u8>>;
 }
 
 /// Tüm veriyi silip kurulum öncesi hâle döndürür.

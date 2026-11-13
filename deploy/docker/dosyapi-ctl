@@ -4,9 +4,9 @@
 set -euo pipefail
 
 DIR="${DOSYAPI_DIR:-/opt/dosyapi}"
-BACKUPS="$DIR/yedekler"
-KEEP_BACKUPS="${DOSYAPI_KEEP_BACKUPS:-14}"
-APP_UID=10001
+# Uygulamanın yedek klasörü (konteynerde /data/app/backups) ve anahtar dosyası.
+BACKUPS="$DIR/data/app/backups"
+KEY_FILE="$DIR/data/secret.key"
 
 die() { echo "Hata: $*" >&2; exit 1; }
 info() { echo "› $*"; }
@@ -24,6 +24,25 @@ esac
 
 dc() { docker compose --project-directory "$DIR" -f "$DIR/compose.yml" "$@"; }
 app() { dc exec -T dosyapi dosyapi --config /data/config.toml "$@"; }
+# Uygulama çalışıyorsa içinde, çalışmıyorsa geçici bir konteynerde çalıştırır.
+# Ek docker run seçenekleri (ör. -v) "--" öncesinde verilir. Çıktıdaki konteyner yolları
+# sunucudaki karşılıklarıyla yazılır.
+app_any() {
+  local opts=()
+  while [ $# -gt 0 ] && [ "$1" != "--" ]; do opts+=("$1"); shift; done
+  [ "${1:-}" = "--" ] && shift
+  if running && [ ${#opts[@]} -eq 0 ]; then
+    dc exec -T dosyapi dosyapi --config /data/config.toml "$@"
+  else
+    dc run --rm --no-deps -T "${opts[@]}" --entrypoint dosyapi dosyapi --config /data/config.toml "$@"
+  fi 2>&1 | sed "s#/data/#$DIR/data/#g"
+}
+# Etkileşimli (terminalden yanıt bekleyen) komutlar için.
+app_tty() {
+  if running; then dc exec dosyapi dosyapi --config /data/config.toml "$@"
+  else dc run --rm --no-deps --entrypoint dosyapi dosyapi --config /data/config.toml "$@"; fi
+}
+abspath() { (cd "$(dirname "$1")" && printf '%s/%s\n' "$(pwd)" "$(basename "$1")"); }
 env_get() { [ -f "$DIR/.env" ] || return 0; sed -n "s/^$1=//p" "$DIR/.env" | tail -n1; }
 env_set() {
   local key="$1" value="$2" tmp
@@ -130,51 +149,89 @@ cmd_start() {
 
 # Tutarlı yedek: uygulama çalışıyorsa birkaç saniye durdurulur, veri klasörü (veritabanı,
 # şifreli dosyalar, yapılandırma ve gizli anahtar) arşivlenir, sonra yeniden başlatılır.
+# Tam yedek: veritabanı + dosyalar tek dosyada, secret.key'den türetilen anahtarla şifreli
+# ve doğrulanabilir. Uygulama durmaz. İsteğe bağlı hedef klasöre yedek ve anahtar kopyalanır.
 cmd_backup() {
-  local stamp file was_running=0
+  local target="${1:-}" file
   [ -d "$DIR/data" ] || die "Yedeklenecek veri yok ($DIR/data)."
-  install -d -m 0700 "$BACKUPS"
-  stamp="$(date +%Y%m%d-%H%M%S)"
-  file="$BACKUPS/dosyapi-$stamp.tar.gz"
-  if running; then
-    was_running=1
-    info "Uygulama kısa süreliğine durduruluyor…"
-    dc stop dosyapi >/dev/null
-  fi
-  tar -czf "$file" -C "$DIR" data .env
-  chmod 600 "$file"
-  [ "$was_running" = 1 ] && dc start dosyapi >/dev/null
-  info "Yedek: $file ($(du -h "$file" | cut -f1))"
-  echo "  Bu arşiv gizli anahtarı da içerir; sunucu dışında güvenli bir yerde saklayın."
-  # Eski yedekleri temizle (en yeni $KEEP_BACKUPS kalır).
-  # Dosya adları yalnızca dosyapi-YYYYmmdd-HHMMSS.tar.gz olduğu için ls sıralaması güvenli.
-  # shellcheck disable=SC2012
-  ls -1t "$BACKUPS"/dosyapi-*.tar.gz 2>/dev/null | tail -n +"$((KEEP_BACKUPS + 1))" | xargs -r rm -f
-  if [ "$was_running" = 1 ]; then
-    wait_healthy 60 || echo "Uyarı: yedekten sonra uygulama henüz yanıt vermiyor; 'dosyapi-ctl logs' ile bakın." >&2
+  app_any -- backup || die "Yedek alınamadı."
+  if [ -n "$target" ]; then
+    # Adlar yalnızca dosyapi-YYYYAAGG-SSDDSS-konsol-xxxxxx.dsyb; ls sıralaması güvenli.
+    # shellcheck disable=SC2012
+    file="$(ls -1t "$BACKUPS"/dosyapi-*-konsol-*.dsyb 2>/dev/null | head -n1)"
+    [ -n "$file" ] || die "Yeni yedek bulunamadı."
+    install -d -m 0700 "$target"
+    install -m 0600 "$file" "$target/"
+    install -m 0600 "$KEY_FILE" "$target/secret.key"
+    info "Kopyalandı: $target/$(basename "$file") ve $target/secret.key"
   fi
 }
 
+# Yedeğin bütünlüğünü uçtan uca doğrular. Başka sunucunun yedeği için --key verilir.
+cmd_verify() {
+  local file="" key="" opts=() args=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --key) key="${2:-}"; shift 2 ;;
+      *) file="$1"; shift ;;
+    esac
+  done
+  [ -f "$file" ] || die "Yedek dosyası verin: dosyapi-ctl verify $BACKUPS/dosyapi-....dsyb"
+  opts=(-v "$(abspath "$file"):/yedek/kontrol.dsyb:ro")
+  args=(verify /yedek/kontrol.dsyb)
+  if [ -n "$key" ]; then
+    [ -f "$key" ] || die "Anahtar dosyası bulunamadı: $key"
+    opts+=(-v "$(abspath "$key"):/yedek/secret.key:ro")
+    args+=(--secret-key /yedek/secret.key)
+  fi
+  app_any "${opts[@]}" -- "${args[@]}"
+}
+
+# Yedeği doğrular, uygulamayı durdurur, geri yükler ve yeniden başlatır. Mevcut veri
+# silinmez; data/app/onceki-<zaman> klasörüne taşınır.
 cmd_restore() {
-  local file="${1:-}" stamp
-  [ -f "$file" ] || die "Yedek dosyası verin: dosyapi-ctl restore $BACKUPS/dosyapi-....tar.gz"
-  tar -tzf "$file" data/config.toml >/dev/null 2>&1 || die "Bu dosya bir dosyapı yedeği değil."
-  echo "Mevcut veriler $DIR/data.eski-* olarak kenara alınacak ve yedek geri yüklenecek."
-  if [ "${2:-}" != "--yes" ]; then
+  local file="" key="" yes=0 opts=() args=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --key) key="${2:-}"; shift 2 ;;
+      --yes) yes=1; shift ;;
+      *) file="$1"; shift ;;
+    esac
+  done
+  [ -f "$file" ] || die "Yedek dosyası verin: dosyapi-ctl restore $BACKUPS/dosyapi-....dsyb [--key secret.key]"
+  opts=(-v "$(abspath "$file"):/yedek/geri.dsyb:ro")
+  args=(restore /yedek/geri.dsyb --yes)
+  if [ -n "$key" ]; then
+    [ -f "$key" ] || die "Anahtar dosyası bulunamadı: $key"
+    opts+=(-v "$(abspath "$key"):/yedek/secret.key:ro")
+    args+=(--secret-key /yedek/secret.key)
+  fi
+  info "Yedek doğrulanıyor…"
+  cmd_verify "$file" ${key:+--key "$key"} || die "Yedek doğrulanamadı; hiçbir şey değişmedi."
+  echo "Uygulama durdurulacak; mevcut veriler $DIR/data/app/onceki-<zaman> klasörüne taşınıp yedek geri yüklenecek."
+  [ -n "$key" ] && echo "Verilen anahtar bu sunucunun anahtarı olacak (eskisi de saklanır)."
+  if [ "$yes" != 1 ]; then
     yes_no "Devam edilsin mi?" || die "Vazgeçildi."
   fi
-  stamp="$(date +%Y%m%d-%H%M%S)"
   dc stop dosyapi >/dev/null 2>&1 || true
-  [ -d "$DIR/data" ] && mv "$DIR/data" "$DIR/data.eski-$stamp"
-  tar -xzf "$file" -C "$DIR" data
-  chown -R "$APP_UID:$APP_UID" "$DIR/data"
-  chmod 700 "$DIR/data"
+  if ! app_any "${opts[@]}" -- "${args[@]}"; then
+    dc up -d >/dev/null
+    die "Geri yükleme yapılamadı; mevcut veriler yerinde, uygulama yeniden başlatıldı."
+  fi
   dc up -d >/dev/null
   if wait_healthy 90; then
-    info "Geri yüklendi. Önceki veriler: $DIR/data.eski-$stamp"
+    info "Geri yüklendi ve uygulama çalışıyor."
   else
-    die "Uygulama açılmadı; önceki veriler $DIR/data.eski-$stamp içinde duruyor."
+    die "Uygulama açılmadı; günlükler: sudo dosyapi-ctl logs. Önceki veriler $DIR/data/app/onceki-* içinde."
   fi
+}
+
+# Tüm veriyi siler; önce tam yedek alır. Sunucu adresini yazarak onay ister.
+cmd_factory_reset() {
+  app_tty factory-reset || die "Fabrika ayarlarına dönülmedi."
+  dc restart dosyapi >/dev/null
+  wait_healthy 60 || true
+  info "Kurulum sihirbazı tarayıcıda açık; yukarıdaki belirteçle kurulumu tamamlayın."
 }
 
 # Güncelleme: önce yedek, sonra yeni imaj. Sağlıklı açılmazsa önceki imaja dönülür.
@@ -279,14 +336,20 @@ dosyapı yönetim aracı — kullanım: sudo dosyapi-ctl <command>
   logs [-f]                 Uygulama günlükleri (-f: canlı izle)
   start                     Servisleri başlat
   restart                   Servisleri yeniden başlat
-  backup                    Tutarlı yedek al (çalışıyorsa birkaç saniyelik kesinti)
-  restore <file> [--yes]    Yedekten geri yükle
+  backup [klasör]           Tam yedek al (veritabanı + dosyalar, şifreli) ve doğrula;
+                            klasör verilirse yedek ve secret.key oraya da kopyalanır
+  verify <yedek> [--key k]  Yedeğin bütünlüğünü doğrula (başka sunucunun yedeği: --key)
+  restore <yedek> [--key k] [--yes]
+                            Doğrulayıp geri yükle; mevcut veri kenara alınır
   update [version]          Yedek alıp en yeni (ya da belirtilen) sürüme geç; sorun olursa geri döner
                             (kaynak kurulumunda sunucuda yeniden derler)
   build [ref]               Kaynak koddan imaj derle (ref: main ya da v1.2.3)
   auto-update on|off        Gece otomatik güncelleme
   token                     Yeni ilk kurulum belirteci üret
-  master-reset              Master şifreyi ve master iki adımlı doğrulamayı sıfırla
+  master-reset              Master şifreyi sıfırla (iki adımlı doğrulama ve kilit de kalkar)
+  master-disable            Sistem panelini kapat (yalnızca master-enable açar)
+  master-enable             Sistem panelini aç; geçici kilidi ve deneme sayacını sıfırla
+  factory-reset             Tüm veriyi sil (önce tam yedek alınır; adres yazılarak onaylanır)
   uninstall                 Servisleri kaldır (veriler kalır)
 HELP
 }
@@ -300,16 +363,18 @@ case "${1:-help}" in
       dc restart
       if wait_healthy 90; then info "Çalışıyor."; else die "Yanıt yok; günlükler: sudo dosyapi-ctl logs"; fi
     else cmd_start; fi ;;
-  backup) cmd_backup ;;
+  backup) shift; cmd_backup "$@" ;;
+  verify) shift; cmd_verify "$@" ;;
   restore) shift; cmd_restore "$@" ;;
   update) shift; cmd_update "$@" ;;
   build) shift; cmd_build "$@" ;;
   auto-update) shift; cmd_auto_update "$@" ;;
   token) cmd_token ;;
-  # Yeni şifreyi terminalden sorar; bu yüzden etkileşimli (-T olmadan) çalışır.
-  master-reset)
-    running || die "Uygulama çalışmıyor. Önce başlatın: sudo dosyapi-ctl start"
-    dc exec dosyapi dosyapi --config /data/config.toml master-reset ;;
+  # Yeni şifreyi terminalden sorar; bu yüzden etkileşimli çalışır.
+  master-reset) app_tty master-reset ;;
+  master-disable) app_any -- master-disable ;;
+  master-enable) app_any -- master-enable ;;
+  factory-reset) cmd_factory_reset ;;
   uninstall) cmd_uninstall ;;
   help|-h|--help) usage ;;
   *) echo "Bilinmeyen komut: $1" >&2; echo >&2; usage >&2; exit 1 ;;

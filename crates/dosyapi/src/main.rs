@@ -3,6 +3,7 @@
 mod app;
 mod assets;
 mod config;
+mod console;
 mod http;
 mod release_keys;
 mod tls;
@@ -13,7 +14,7 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use clap::{Parser, Subcommand};
 use config::Config;
-use dosyapi_core::ports::{BackupService, TokenService};
+use dosyapi_core::ports::TokenService;
 use dosyapi_core::services::dns::DnsConfig;
 use dosyapi_core::services::settings::KEY_DNS;
 use dosyapi_infra::crypto::{HmacTokens, Keyring};
@@ -57,12 +58,35 @@ enum Command {
     },
     /// Sunucuyu başlatır
     Serve,
-    /// Veritabanı yedeği alır
+    /// Tam yedek alır (veritabanı + dosyalar, şifreli) ve hemen doğrular
     Backup,
+    /// Yedek dosyasının bütünlüğünü uçtan uca doğrular
+    Verify {
+        file: PathBuf,
+        /// Yedeği alan sunucunun anahtar dosyası (varsayılan: bu sunucununki)
+        #[arg(long)]
+        secret_key: Option<PathBuf>,
+    },
+    /// Yedeği doğrulayıp geri yükler (sunucu durdurulmuş olmalı); mevcut veri kenara alınır
+    Restore {
+        file: PathBuf,
+        /// Yedeği alan sunucunun anahtar dosyası; farklıysa bu sunucunun anahtarı olur
+        #[arg(long)]
+        secret_key: Option<PathBuf>,
+        /// Onay sormadan
+        #[arg(long)]
+        yes: bool,
+    },
     /// Yeni kurulum belirteci üretir (kurulum tamamlanmadıysa; sonra sunucuyu yeniden başlatın)
     SetupToken,
-    /// Master şifreyi sunucu konsolundan sıfırlar; iki adımlı doğrulamayı ve kilidi kaldırır
+    /// Master şifreyi sıfırlar; iki adımlı doğrulamayı, kilidi ve panel oturumlarını kaldırır
     MasterReset,
+    /// Sistem panelini kapatır; yalnızca `master-enable` açar
+    MasterDisable,
+    /// Sistem panelini açar; geçici kilidi ve hatalı deneme sayacını sıfırlar
+    MasterEnable,
+    /// Tüm veriyi siler (önce tam yedek alır); sunucu adresini yazarak onay ister
+    FactoryReset,
     /// Yetkili güncelleyici (systemd tarafından çalıştırılır)
     UpdaterApply {
         #[arg(long, default_value = "/opt/dosyapi/bin/dosyapi")]
@@ -180,14 +204,14 @@ async fn serve(config: Config) -> Result<()> {
             }
         }
     });
-    let backup = services.backups.clone();
+    let scheduled = services.clone();
     tokio::spawn(async move {
-        let mut tick = tokio::time::interval(Duration::from_secs(24 * 3600));
-        tick.tick().await;
+        let start = tokio::time::Instant::now() + Duration::from_secs(60);
+        let mut tick = tokio::time::interval_at(start, Duration::from_secs(600));
         loop {
             tick.tick().await;
-            if let Err(error) = backup.create("gunluk").await {
-                tracing::warn!(?error, "günlük yedek alınamadı");
+            if let Err(error) = scheduled_backup(&scheduled).await {
+                tracing::warn!(?error, "otomatik yedek alınamadı");
             }
         }
     });
@@ -223,38 +247,41 @@ async fn serve(config: Config) -> Result<()> {
     Ok(())
 }
 
-/// Sunucu konsoluna erişen kişi zaten veriye erişebilir; bu yüzden tek kurtarma yolu budur.
-async fn master_reset(config: &Config) -> Result<()> {
-    use dosyapi_core::password;
-    use dosyapi_core::ports::{PasswordHasher, SettingsRepo};
-    use dosyapi_core::services::settings::{KEY_MASTER_HASH, KEY_MASTER_LOCK, KEY_MASTER_TOTP};
-    println!("Yeni master şifre (en az {} karakter):", password::MIN_LEN);
-    let mut line = String::new();
-    std::io::stdin().read_line(&mut line)?;
-    let new_password = line.trim_end_matches(['\r', '\n']);
-    password::check(new_password, &[]).map_err(|e| anyhow!("{e}"))?;
-    let keys = keyring(config, false)?;
-    let pool = dosyapi_infra::db::connect(&config.database())
-        .await
-        .map_err(|e| anyhow!("{e:?}"))?;
-    let cipher = dosyapi_infra::crypto::FieldCipher::new(&keys.derive("field"))
-        .map_err(|e| anyhow!("{e:?}"))?;
-    let db = dosyapi_infra::repos::Db::new(pool, cipher);
-    let hash = dosyapi_infra::crypto::ArgonHasher::new()
-        .map_err(|e| anyhow!("{e:?}"))?
-        .hash(new_password)
-        .map_err(|e| anyhow!("{e:?}"))?;
-    let stored = serde_json::to_string(&hash)?;
-    db.set(KEY_MASTER_HASH, &stored)
-        .await
-        .map_err(|e| anyhow!("{e:?}"))?;
-    db.remove(KEY_MASTER_TOTP)
-        .await
-        .map_err(|e| anyhow!("{e:?}"))?;
-    db.remove(KEY_MASTER_LOCK)
-        .await
-        .map_err(|e| anyhow!("{e:?}"))?;
-    println!("Master şifre güncellendi. Sistem paneline yeni şifreyle girin.");
+/// Zamanlanmış tam yedek: ayardaki aralık dolduysa alır, eski otomatik yedekleri budar.
+async fn scheduled_backup(services: &app::Services) -> dosyapi_core::AppResult<()> {
+    use dosyapi_core::services::settings::{BackupSchedule, KEY_BACKUP_SCHEDULE};
+    if services.setup.required().await? {
+        return Ok(());
+    }
+    let schedule: BackupSchedule = services
+        .settings
+        .get_json(KEY_BACKUP_SCHEDULE)
+        .await?
+        .unwrap_or_default();
+    if !schedule.enabled {
+        return Ok(());
+    }
+    let last = services
+        .backups
+        .list()
+        .await?
+        .into_iter()
+        .filter(|b| b.label == "otomatik" && !b.foreign)
+        .map(|b| b.at)
+        .max()
+        .unwrap_or(0);
+    if services.clock.now() - last < schedule.every_hours * 3600 {
+        return Ok(());
+    }
+    let info = services.backups.create("otomatik").await?;
+    tracing::info!(name = %info.name, "otomatik yedek alındı");
+    let removed = services
+        .backups
+        .prune("otomatik", schedule.keep.max(1) as usize)
+        .await?;
+    if removed > 0 {
+        tracing::info!(removed, "eski otomatik yedekler silindi");
+    }
     Ok(())
 }
 
@@ -317,17 +344,34 @@ async fn main() -> Result<()> {
             init_tracing();
             serve(Config::load(&cli.config)?).await
         }
-        Command::Backup => {
+        Command::Backup => console::backup(&Config::load(&cli.config)?).await,
+        Command::Verify { file, secret_key } => {
+            console::verify(&Config::load(&cli.config)?, &file, secret_key.as_deref()).await
+        }
+        Command::Restore {
+            file,
+            secret_key,
+            yes,
+        } => {
+            console::restore(
+                &Config::load(&cli.config)?,
+                &file,
+                secret_key.as_deref(),
+                yes,
+            )
+            .await
+        }
+        Command::MasterDisable => console::master_disable(&Config::load(&cli.config)?).await,
+        Command::MasterEnable => console::master_enable(&Config::load(&cli.config)?).await,
+        Command::FactoryReset => {
             let config = Config::load(&cli.config)?;
-            let pool = dosyapi_infra::db::connect(&config.database())
-                .await
-                .map_err(|e| anyhow!("{e:?}"))?;
-            let service = dosyapi_infra::backup::SqliteBackups {
-                pool,
-                dir: config.backups(),
-            };
-            let info = service.create("cli").await.map_err(|e| anyhow!("{e:?}"))?;
-            println!("Yedek: {}", config.backups().join(info.name).display());
+            console::factory_reset(&config).await?;
+            let keys = keyring(&config, false)?;
+            println!(
+                "Yeni kurulum belirteci: {}",
+                write_setup_token(&config, &keys)?
+            );
+            println!("Sunucuyu yeniden başlatıp tarayıcıdan kurulumu bu belirteçle tamamlayın.");
             Ok(())
         }
         Command::SetupToken => {
@@ -337,7 +381,7 @@ async fn main() -> Result<()> {
             println!("Kurulum tamamlanmışsa bu belirteç işe yaramaz.");
             Ok(())
         }
-        Command::MasterReset => master_reset(&Config::load(&cli.config)?).await,
+        Command::MasterReset => console::master_reset(&Config::load(&cli.config)?).await,
         Command::UpdaterApply {
             binary,
             service,

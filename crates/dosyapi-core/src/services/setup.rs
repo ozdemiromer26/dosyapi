@@ -151,6 +151,7 @@ impl SetupService {
                 totp_secret: None,
                 totp_enabled: false,
                 failed_logins: 0,
+                lock_reason: LockReason::None,
                 locked_until: None,
                 notice_accepted_at: None,
                 created_at: self.clock.now(),

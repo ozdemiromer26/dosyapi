@@ -26,7 +26,7 @@ use dosyapi_core::services::tasks::TaskService;
 use dosyapi_core::services::templates::TemplateService;
 use dosyapi_core::services::updates::UpdateService;
 use dosyapi_core::services::users::UserService;
-use dosyapi_infra::backup::{SqliteBackups, SqliteEraser};
+use dosyapi_infra::backup::{BackupKeys, FullBackups, SqliteEraser};
 use dosyapi_infra::clock::SystemClock;
 use dosyapi_infra::crypto::{ArgonHasher, FieldCipher, HmacTokens, Keyring};
 use dosyapi_infra::db;
@@ -153,11 +153,14 @@ pub async fn build(
     let tokens: Arc<dyn TokenService> = Arc::new(HmacTokens::new(&keyring));
     let totp: Arc<dyn Totp> = Arc::new(RfcTotp);
     let limiter: Arc<dyn RateLimiter> = Arc::new(MemoryRateLimiter::default());
+    let backup_gate = Arc::new(tokio::sync::RwLock::new(()));
     let store: Arc<dyn FileStore> = Arc::new(
         EncryptedFileStore::new(&config.files(), file_cipher)
             .await
-            .map_err(err)?,
+            .map_err(err)?
+            .with_gate(backup_gate.clone()),
     );
+    let backup_keys = BackupKeys::new(&keyring);
     let settings = Settings::new(db.clone(), Arc::new(settings_cipher));
     let mail = MailService::new(Arc::new(SmtpMailer), settings.clone());
 
@@ -354,10 +357,14 @@ pub async fn build(
         },
         mail,
         settings,
-        backups: Arc::new(SqliteBackups {
-            pool: pool.clone(),
-            dir: config.backups(),
-        }),
+        backups: Arc::new(FullBackups::new(
+            pool.clone(),
+            config.backups(),
+            config.files(),
+            config.paths.secret_key.clone(),
+            backup_keys,
+            backup_gate,
+        )),
         eraser: Arc::new(SqliteEraser {
             pool: pool.clone(),
             files_root: config.files(),

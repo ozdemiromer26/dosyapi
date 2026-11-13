@@ -111,7 +111,12 @@ export function buildShell(c: Ctx): () => Vals {
       myOpenTaskLabel: myTasks.filter(t => !t.done).length + tx(" açık görev"),
       appShellStyle: isDesktop ? "flex:1;display:flex;align-items:flex-start" : "flex:1;display:flex;flex-direction:column",
       // Mesajlar ekranı tam yükseklik kullanır: alt boşluk masaüstünde 16px, mobilde alt çubuğun hemen üstü.
-      contentStyle: "flex:1;width:100%;margin:0 auto;padding:20px 16px " + (s.tab === "messages" ? (isDesktop ? "16px" : "80px") : (isDesktop ? "70px" : "96px")) + ";max-width:1440px",
+      contentStyle: "flex:1;width:100%;margin:0 auto;padding:20px 16px " + (s.tab === "messages" || s.tab === "templates" ? (isDesktop ? "16px" : "80px") : (isDesktop ? "70px" : "96px")) + ";max-width:1440px",
+      // Şablon düzenleyicinin alt çubuğu: kaydırırken ekranın altına yapışmaz, belgenin sonundaki
+      // kadar (16 px) boşlukla durur. Altındaki şerit zemin rengiyle örtülür; çubuğun altından kayan
+      // kâğıt görünmez (her gölge katmanı köşe yuvarlaklığı yüzünden ancak bir dilim örter, o yüzden
+      // üst üste birkaç katman). Mobilde alt gezinme çubuğunun üstünde durur.
+      edBarStyle: "position:sticky;bottom:" + (isDesktop ? 16 : 80) + "px;z-index:7;display:flex;align-items:center;gap:8px;padding:5px 10px;margin:0 -1px -1px;border:1px solid var(--line);background:var(--card);border-radius:0 0 14px 14px;flex-wrap:wrap;box-shadow:" + (isDesktop ? [14, 31] : [14, 40, 66, 92, 108]).map((y) => "0 " + y + "px 0 0 var(--bg)").join(","),
       cardGridStyle: "display:grid;grid-template-columns:repeat(" + cardCols + ",minmax(0,1fr));gap:13px;align-items:stretch",
       listWide, listNarrow: !listWide,
       listBoxStyle: "display:grid;" + LIST_COLS + "background:var(--card);border:1px solid var(--line);border-radius:13px;overflow:hidden",
@@ -149,7 +154,10 @@ export function buildShell(c: Ctx): () => Vals {
         fail: (e) => app.fail(e),
       },
       goProjects: () => app.setState({ tab: "projects" }),
-      goTasks: () => app.setState({ tab: "tasks", notifOpen: false }), goApprovals: () => app.setState({ tab: "approvals" }),
+      goTasks: () => app.setState({ tab: "tasks", notifOpen: false }),
+      preview: s.preview || null,
+      closePreview: () => app.closePreview(),
+      downloadPreview: () => { const p = app.state.preview; if (p) app.download(p.name, p.url); }, goApprovals: () => app.setState({ tab: "approvals" }),
       goProfile: () => app.setState({ tab: "profile", profileMenuOpen: false }),
 
       stats: (() => {

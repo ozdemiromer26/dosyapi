@@ -2,27 +2,108 @@ import { st } from "./styles";
 import React from "react";
 import { css } from "./css";
 import type { Vals } from "../vm/types";
+import { tx } from "../i18n";
 
 /** Giriş ve kurulum zemini: beyaza yakın, ana renge çok hafif çalan geçiş. */
 export const AUTH_BG = "background:linear-gradient(180deg,var(--card) 0%,color-mix(in oklab,var(--pri,#2a3180) 3%,var(--card)) 100%)";
 
-const CITY: [number, number, number][] = [[300, 40, 22], [326, 58, 18], [348, 34, 26], [378, 72, 14], [396, 48, 22], [422, 30, 30], [456, 62, 16], [476, 44, 24], [504, 82, 12], [520, 52, 20], [544, 36, 28], [576, 66, 18], [598, 46, 22], [624, 28, 34]];
 const tone = (p: number) => `color-mix(in oklab,var(--pri,#2a3180) ${p}%,var(--card))`;
 
-/** Giriş ve kurulum ekranının arkasındaki tek renkli sade manzara (tepeler, ufukta silik şehir).
+/** Giriş ve kurulum ekranının arkasındaki tek renkli sade manzara (güneş ve tepeler).
  *  Tüm tonlar ana renkle kartın karışımı; koyu temada kendiliğinden koyulaşır. */
 export function AuthBackdrop() {
   return (
     <div aria-hidden="true" style={css("position:absolute;inset:0;pointer-events:none;overflow:hidden")}>
       <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMax slice" style={css("position:absolute;inset:0;width:100%;height:100%")}>
         <circle cx="1180" cy="300" r="70" style={{ fill: tone(5) }} />
-        <g style={{ fill: tone(6) }}>
-          {CITY.map(([x, h, w]) => <rect key={x} x={x + 420} y={560 - h} width={w} height={h + 20} />)}
-        </g>
         <path d="M0 600 C180 540 360 520 560 560 S920 610 1100 560 1420 500 1600 540 V900 H0Z" style={{ fill: tone(7) }} />
         <path d="M0 680 C220 620 420 640 640 670 S1040 700 1240 650 1500 620 1600 640 V900 H0Z" style={{ fill: tone(10) }} />
         <path d="M0 770 C260 720 520 740 780 770 S1220 800 1600 740 V900 H0Z" style={{ fill: tone(14) }} />
       </svg>
+    </div>
+  );
+}
+
+/** Şifre kutusu: sağda göster/gizle düğmesi. Dış yerleşim (flex, genişlik) sarmalayıcıya taşınır. */
+export const PassInput = React.forwardRef<HTMLInputElement, any>(function PassInput({ style, ...rest }, ref) {
+  const [show, setShow] = React.useState(false);
+  const { flex, width, minWidth, maxWidth, gridColumn, margin, marginTop, alignSelf, ...inner } = (style || {}) as any;
+  const label = show ? tx("Şifreyi gizle") : tx("Şifreyi göster");
+  return (
+    <div style={{ position: "relative", display: "flex", flex, width, minWidth, maxWidth, gridColumn, margin, marginTop, alignSelf }}>
+      <input {...rest} ref={ref} type={show ? "text" : "password"} style={{ ...inner, width: "100%", minWidth: 0, boxSizing: "border-box", paddingRight: 42 }} />
+      <button type="button" onClick={() => setShow((x) => !x)} aria-label={label} title={label} aria-pressed={show}
+        style={css("position:absolute;right:5px;top:50%;transform:translateY(-50%);width:32px;height:32px;border:none;background:transparent;color:var(--muted,#777);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:7px;padding:0")}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" />{show ? <path d="M3 3l18 18" /> : null}
+        </svg>
+      </button>
+    </div>
+  );
+});
+
+/** Çoklu seçimli açılır liste (combobox). Seçilenler kutuda çip olarak durur; çipteki × ile
+ *  ya da listeden yeniden tıklayarak çıkarılır. Klavye: ↑/↓ gezinir, Enter/Boşluk seçer, Esc kapatır. */
+export function MultiSelect({ options, value, onChange, placeholder, label }: { options: string[]; value: string[]; onChange: (v: string[]) => void; placeholder: string; label: string }) {
+  const [open, setOpen] = React.useState(false);
+  const [sel, setSel] = React.useState<string[]>(value || []);
+  const [active, setActive] = React.useState(0);
+  const box = React.useRef<HTMLDivElement>(null);
+  const listId = React.useId();
+  React.useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [open]);
+  const toggle = (o: string) => {
+    const next = sel.indexOf(o) > -1 ? sel.filter((x) => x !== o) : [...sel, o];
+    setSel(next); onChange(next);
+  };
+  const key = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape" && open) { e.preventDefault(); e.stopPropagation(); setOpen(false); return; }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault(); e.stopPropagation();
+      if (!open) return setOpen(true);
+      setActive((i) => (i + (e.key === "ArrowDown" ? 1 : -1) + options.length) % Math.max(1, options.length));
+      return;
+    }
+    if ((e.key === "Enter" || e.key === " ") && (e.target as HTMLElement).getAttribute("role") === "combobox") {
+      e.preventDefault(); e.stopPropagation();
+      if (!open) setOpen(true); else if (options[active]) toggle(options[active]);
+    }
+  };
+  return (
+    <div ref={box} style={css("position:relative")} onKeyDown={key}>
+      <div role="combobox" tabIndex={0} aria-label={label} aria-expanded={open} aria-haspopup="listbox" aria-controls={listId}
+        aria-activedescendant={open && options[active] ? listId + "-" + active : undefined}
+        onClick={(e) => { (e.currentTarget as HTMLElement).focus(); setOpen((x) => !x); }}
+        style={css("min-height:40px;border:1px solid " + (open ? "var(--pri,#2a3180)" : "var(--line)") + ";background:var(--card);border-radius:9px;padding:5px 34px 5px 8px;display:flex;flex-wrap:wrap;gap:5px;align-items:center;cursor:pointer;position:relative")}>
+        {sel.length ? sel.map((o) => (
+          <span key={o} style={css("display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 4px 0 9px;border-radius:999px;background:var(--tint);color:var(--brandink);font-size:12px;font-weight:700")}>
+            {o}
+            <button type="button" aria-label={o + " — " + tx("kaldır")} onClick={(e) => { e.stopPropagation(); toggle(o); }}
+              style={css("width:20px;height:20px;border:none;border-radius:50%;background:transparent;color:inherit;cursor:pointer;font-size:14px;line-height:1;padding:0")}>×</button>
+          </span>
+        )) : <span style={css("font-size:13px;font-weight:600;color:var(--muted);padding-left:3px")}>{placeholder}</span>}
+        <span aria-hidden="true" style={css("position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:11px")}>{open ? "▲" : "▼"}</span>
+      </div>
+      {open ? (
+        <ul id={listId} role="listbox" aria-multiselectable="true" aria-label={label}
+          style={css("margin:4px 0 0;padding:5px;list-style:none;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 28px rgba(0,0,0,.14);max-height:220px;overflow:auto")}
+          ref={(el) => { if (el) el.scrollIntoView({ block: "nearest" }); }}>
+          {options.map((o, i) => {
+            const on = sel.indexOf(o) > -1;
+            return (
+              <li key={o} id={listId + "-" + i} role="option" aria-selected={on} onMouseDown={(e) => e.preventDefault()} onClick={() => toggle(o)} onMouseEnter={() => setActive(i)}
+                style={css("display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:700;color:var(--ink);" + (i === active ? "background:var(--soft2)" : ""))}>
+                <span aria-hidden="true" style={css("width:18px;height:18px;flex:none;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;" + (on ? "background:var(--pri,#2a3180);border:1px solid var(--pri,#2a3180)" : "background:var(--card);border:1px solid var(--line)"))}>{on ? "✓" : ""}</span>
+                {o}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
     </div>
   );
 }
@@ -56,7 +137,9 @@ export function Field({ label, name, type, value, placeholder, onChange }: { lab
   return (
     <label style={css("flex:1;min-width:160px;display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:var(--mmuted)")}>
       {label}
-      <input name={name} type={type || "text"} defaultValue={value} placeholder={placeholder} onChange={onChange} autoComplete="off" style={css(INPUT)} />
+      {type === "password"
+        ? <PassInput name={name} defaultValue={value} placeholder={placeholder} onChange={onChange} autoComplete="new-password" style={css(INPUT)} />
+        : <input name={name} type={type || "text"} defaultValue={value} placeholder={placeholder} onChange={onChange} autoComplete="off" style={css(INPUT)} />}
     </label>
   );
 }

@@ -47,17 +47,18 @@ export function buildSheets(c: Ctx): () => Vals {
         if (!shares.ok) return app.toast(shares.text ? tx("Hisselerin toplamı 1/1 olmalı; şu an ") + shares.text + "." : tx("Geçersiz hisse: ") + shares.invalid.join(", "));
         app.commit(d.id ? "update" : "create", "project", payload, (d.id ? tx("Proje düzenleme") : tx("Yeni proje")) + ": " + payload.name);
       },
+      onAuJobs: (jobs) => { app.fd.auJobs = jobs; },
       saveAuthor: () => {
         const d = s.draft || {}, f = app.fd;
         const payload = {
           id: d.id || "",
           tc: f.auTc !== undefined ? f.auTc : (d.tc || ""), first: f.auFirst !== undefined ? f.auFirst : (d.first || ""),
           last: f.auLast !== undefined ? f.auLast : (d.last || ""), phone: f.auPhone !== undefined ? f.auPhone : (d.phone || ""),
-          company: f.auCompany !== undefined ? f.auCompany : (d.company || ""), job: f.auJob !== undefined ? f.auJob : (d.job || ""),
+          company: f.auCompany !== undefined ? f.auCompany : (d.company || ""), jobs: f.auJobs !== undefined ? f.auJobs : (d.jobs || []),
           sicil: f.auSicil !== undefined ? f.auSicil : (d.sicil || ""), address: f.auAddress !== undefined ? f.auAddress : (d.address || ""),
         };
         if (!payload.first.trim()) return app.toast(tx("İsim zorunlu."));
-        if (!payload.job) return app.toast(tx("Meslek seçin (şirket ayarlarında tanımlı listeden)."));
+        if (!payload.jobs.length) return app.toast(tx("En az bir meslek seçin."));
         app.commit(d.id ? "update" : "create", "author", payload, (d.id ? tx("Müellif düzenleme") : tx("Yeni müellif")) + ": " + payload.first + " " + payload.last);
       },
       saveContractor: () => {

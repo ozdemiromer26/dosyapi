@@ -1,6 +1,7 @@
 import { st } from "../styles";
 import React from "react";
 import { css } from "../css";
+import { PassInput } from "../parts";
 import type { Vals } from "../../vm/types";
 import { ProfileSecurity } from "./ProfileSecurity";
 
@@ -27,16 +28,16 @@ export function ProfileScreen({ v }: { v: Vals }) {
                   <input name="pEmail" onChange={v.onField} defaultValue={v.meEmail} style={st.field} />
                 </label>
                 <label style={st.fieldLabel}>{v.T.epostaDegisimSifre}
-                  <input name="pCurrent" ref={v.refPCurrent} type="password" autoComplete="current-password" onChange={v.onField} style={css("height:40px;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:0 11px;font-size:14px;font-weight:600;color:var(--ink)")} />
+                  <PassInput name="pCurrent" ref={v.refPCurrent} autoComplete="current-password" onChange={v.onField} style={css("height:40px;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:0 11px;font-size:14px;font-weight:600;color:var(--ink)")} />
                 </label>
                 <button onClick={v.saveProfile} style={css("height:40px;border:none;border-radius:9px;background:var(--pri,#2a3180);color:#fff;font-size:14px;font-weight:700;cursor:pointer")}>{v.T.bilgileriKaydet}</button>
               </div>
 
               <div style={st.card}>
                 <div style={st.title14}>{v.T.sifreDegistir}</div>
-                <input name="oldPass" ref={v.refOldPass} onChange={v.onField} type="password" placeholder={v.T.mevcutSifre} style={st.field} />
-                <input name="newPass" ref={v.refNewPass} onChange={v.onField} type="password" placeholder={v.T.yeniSifre} style={st.field} />
-                <input name="newPass2" ref={v.refNewPass2} onChange={v.onField} type="password" placeholder={v.T.yeniSifreOnayi} style={st.field} />
+                <PassInput name="oldPass" ref={v.refOldPass} onChange={v.onField} placeholder={v.T.mevcutSifre} style={st.field} />
+                <PassInput name="newPass" ref={v.refNewPass} onChange={v.onField} placeholder={v.T.yeniSifre} style={st.field} />
+                <PassInput name="newPass2" ref={v.refNewPass2} onChange={v.onField} placeholder={v.T.yeniSifreOnayi} style={st.field} />
                 <button onClick={v.savePassword} style={css("height:40px;border:1px solid var(--line);background:var(--soft3);border-radius:9px;font-size:14px;font-weight:700;cursor:pointer")}>{v.T.sifreyiGuncelle}</button>
               </div>
             </div>

@@ -38,6 +38,7 @@ impl Db {
             totp_secret,
             totp_enabled: r.try_get("totp_enabled").map_err(db_err)?,
             failed_logins: r.try_get("failed_logins").map_err(db_err)?,
+            lock_reason: LockReason::parse(&r.try_get::<String, _>("lock_reason").map_err(db_err)?),
             locked_until: r.try_get("locked_until").map_err(db_err)?,
             notice_accepted_at: r.try_get("notice_accepted_at").map_err(db_err)?,
             created_at: r.try_get("created_at").map_err(db_err)?,
@@ -139,15 +140,23 @@ impl UserRepo for Db {
         &self,
         id: &str,
         failed: i64,
+        reason: LockReason,
         locked_until: Option<Timestamp>,
     ) -> AppResult<()> {
-        sqlx::query("UPDATE users SET failed_logins = ?, locked_until = ? WHERE id = ?")
-            .bind(failed)
-            .bind(locked_until)
-            .bind(id)
-            .execute(&self.pool)
-            .await
-            .map_err(db_err)?;
+        sqlx::query(
+            "UPDATE users SET failed_logins = ?, lock_reason = ?, locked_until = ? WHERE id = ?",
+        )
+        .bind(failed)
+        .bind(reason.as_str())
+        .bind(if reason == LockReason::None {
+            None
+        } else {
+            locked_until
+        })
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .map_err(db_err)?;
         Ok(())
     }
 

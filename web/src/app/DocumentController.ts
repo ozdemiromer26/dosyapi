@@ -32,8 +32,8 @@ export class DocumentController extends EditorController {
     } catch (e) { this.fail(e); return false; }
   }
   authorMiss(p) {
-    const s = this.state, ids = (p && p.authorIds) || [];
-    return (s.professions || []).filter(pf => (s.profRequired || {})[pf] !== false).filter(pf => !ids.some(id => { const a = s.authors.find(x => x.id === id); return a && a.job === pf; }));
+    const s = this.state, list = (p && p.assignments) || [];
+    return (s.professions || []).filter(pf => (s.profRequired || {})[pf] !== false).filter(pf => !list.some(x => x.job === pf && s.authors.some(a => a.id === x.authorId)));
   }
   openGen(kind, d, prefer) {
     if (kind === "project") { const pr = this.state.projects.find(p => p.id === (d || {}).projectId), miss = pr ? this.authorMiss(pr) : []; if (miss.length) return this.toast(tx("Önce her meslek için bir müellif atayın: ") + miss.join(", ")); }
@@ -53,8 +53,10 @@ export class DocumentController extends EditorController {
   buildCtx(kind, d) {
     const s = this.state; d = d || {};
     const now = new Date(), A = (id) => s.authors.find(a => a.id === id);
+    // Projede her atama bir satırdır (aynı kişi iki meslekte iki kez yer alır); _job o satırın mesleği.
+    const assigned = (p) => (p.assignments || []).map(x => { const a = A(x.authorId); return a ? { ...a, _job: x.job } : null; }).filter(Boolean);
     let project = null, authors = [], contractor = null, contractors = [];
-    if (kind === "project") { project = s.projects.find(p => p.id === d.projectId) || null; authors = project ? (project.authorIds || []).map(A).filter(Boolean) : []; }
+    if (kind === "project") { project = s.projects.find(p => p.id === d.projectId) || null; authors = project ? assigned(project) : []; }
     if (kind === "authors") { authors = (d.ids || []).map(A).filter(Boolean); project = d.projectId ? (s.projects.find(p => p.id === d.projectId) || null) : null; }
     if (kind === "contractor") {
       // Çoklu seçim: ilk müteahhit tekil değişkenleri, tamamı "Müteahhitler" listesini doldurur.
@@ -62,11 +64,11 @@ export class DocumentController extends EditorController {
       contractor = contractors[0] || null;
     }
     if (project && !contractor) contractor = s.contractors.find(c => c.id === project.contractorId) || { title: project.contractor };
-    const pAuthors = project ? (project.authorIds || []).map(A).filter(Boolean) : authors;
-    const mimar = pAuthors.find(a => /mimar/i.test(a.job || "")) || null;
+    const pAuthors = project ? assigned(project) : authors;
+    const mimar = pAuthors.find(a => /mimar/i.test(a._job || (a.jobs || []).join(" "))) || null;
     const owners = project ? (project.owners || []) : [];
     const proxy = (project && project.proxy) || {};
-    const au = (a) => a ? { adSoyad: ((a.first || "") + " " + (a.last || "")).trim(), tc: a.tc || "", telefon: a.phone || "", meslek: a.job || "", sirket: a.company || "", sicil: a.sicil || "", adres: a.address || "" } : {};
+    const au = (a) => a ? { adSoyad: ((a.first || "") + " " + (a.last || "")).trim(), tc: a.tc || "", telefon: a.phone || "", meslek: a._job || (a.jobs || []).join(", "), sirket: a.company || "", sicil: a.sicil || "", adres: a.address || "" } : {};
     const v = {};
     const put = (pre, o) => Object.keys(o).forEach(k => { v[pre + "." + k] = o[k]; });
     const ref = project || contractor || authors[0] || {};

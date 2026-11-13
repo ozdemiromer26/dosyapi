@@ -1,6 +1,6 @@
 import { st } from "../styles";
 import { css } from "../css";
-import { PoweredBy, NoteBox, AuthBackdrop, AUTH_BG } from "../parts";
+import { PoweredBy, NoteBox, AuthBackdrop, AUTH_BG, PassInput } from "../parts";
 import type { Vals } from "../../vm/types";
 
 export function AuthScreen({ v }: { v: Vals }) {
@@ -37,7 +37,7 @@ export function AuthScreen({ v }: { v: Vals }) {
                 <input name="email" onChange={v.onField} type="email" placeholder={v.T.ornekYapiCom} style={st.fieldAuth} />
               </label>
               <label style={st.fieldLabel}>{v.T.sifre}
-                <input name="pass" onChange={v.onField} type="password" placeholder="••••••••" style={st.fieldAuth} />
+                <PassInput name="pass" onChange={v.onField} placeholder="••••••••" style={st.fieldAuth} />
               </label>
               {v.totpNeeded ? (<><label style={st.fieldLabel}>{v.T.dogrulamaKodu}
                 <input name="code" onChange={v.onField} autoComplete="one-time-code" autoCapitalize="none" spellCheck={false} maxLength={20} placeholder="000000" style={st.fieldAuth} />
@@ -70,7 +70,7 @@ export function AuthScreen({ v }: { v: Vals }) {
                   <input name="phone" onChange={v.onField} placeholder="0532 000 00 00" style={st.fieldAuth} />
                 </label>
                 <label style={css("flex:1;min-width:140px;display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:var(--muted)")}>{v.T.sifre}
-                  <input name="pass" onChange={v.onField} type="password" placeholder={v.T.enAz4Karakter} style={st.fieldAuth} />
+                  <PassInput name="pass" onChange={v.onField} placeholder={v.T.enAz4Karakter} style={st.fieldAuth} />
                 </label>
               </div>
               <NoteBox tone="info" extra="padding:11px 12px;font-size:12px;font-weight:600;line-height:1.55">{v.T.kayitTalebinizYetkiliBir}</NoteBox>
@@ -104,10 +104,10 @@ export function AuthScreen({ v }: { v: Vals }) {
                 <div style={css("font-size:13px;color:var(--muted);font-weight:600;margin-top:3px")}>{v.resetForLabel}</div>
               </div>
               <label style={st.fieldLabel}>{v.T.yeniSifreUp}
-                <input name="rNew" onChange={v.onField} type="password" placeholder={v.T.enAz4Karakter} style={st.fieldAuth} />
+                <PassInput name="rNew" onChange={v.onField} placeholder={v.T.enAz4Karakter} style={st.fieldAuth} />
               </label>
               <label style={st.fieldLabel}>{v.T.yeniSifreTekrarUp}
-                <input name="rNew2" onChange={v.onField} type="password" placeholder="••••••••" style={st.fieldAuth} />
+                <PassInput name="rNew2" onChange={v.onField} placeholder="••••••••" style={st.fieldAuth} />
               </label>
               <button data-submit="1" onClick={v.doResetPass} style={st.primaryLarge}>{v.T.sifreyiSifirla}</button>
               <button onClick={v.showLogin} style={css("align-self:flex-start;border:none;background:none;padding:2px 0;font-size:13px;font-weight:700;color:var(--brandink);cursor:pointer")}>{v.T.giriseDon}</button>

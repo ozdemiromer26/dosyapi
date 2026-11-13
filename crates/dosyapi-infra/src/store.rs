@@ -12,8 +12,10 @@ use async_trait::async_trait;
 use dosyapi_core::error::{AppError, AppResult};
 use dosyapi_core::ports::{FileSink, FileSource, FileStore};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tokio::fs::{self, File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::sync::RwLock;
 
 const MAGIC: &[u8; 4] = b"DSY1";
 const CHUNK: usize = 64 * 1024;
@@ -36,6 +38,8 @@ fn chunk_nonce(prefix: &[u8; PREFIX_LEN], counter: u32, last: bool) -> [u8; 12] 
 pub struct EncryptedFileStore {
     root: PathBuf,
     wrap: FieldCipher,
+    /// Yedek alınırken silmeler bekler (bkz. `backup::FullBackups`).
+    gate: Arc<RwLock<()>>,
 }
 
 impl EncryptedFileStore {
@@ -49,7 +53,14 @@ impl EncryptedFileStore {
         Ok(Self {
             root: root.to_path_buf(),
             wrap,
+            gate: Arc::new(RwLock::new(())),
         })
+    }
+
+    /// Yedekleme ile paylaşılan kilit.
+    pub fn with_gate(mut self, gate: Arc<RwLock<()>>) -> Self {
+        self.gate = gate;
+        self
     }
 
     /// Yol yalnızca kimlikten üretilir; kullanıcı dosya adı burada yer almaz.
@@ -261,6 +272,7 @@ impl FileStore for EncryptedFileStore {
     }
 
     async fn delete(&self, id: &str) -> AppResult<()> {
+        let _gate = self.gate.read().await;
         match fs::remove_file(self.object_path(id)?).await {
             Ok(()) => Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),

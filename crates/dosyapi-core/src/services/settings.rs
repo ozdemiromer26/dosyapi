@@ -25,12 +25,60 @@ pub const KEY_INSTALLED: &str = "update.installed";
 pub const KEY_DNS: &str = "dns";
 pub const KEY_DNS_TOKEN: &str = "dns.token";
 pub const KEY_NOTICE: &str = "legal.notice";
+pub const KEY_MASTER_DISABLED: &str = "master.disabled";
+pub const KEY_BACKUP_SCHEDULE: &str = "backup.schedule";
 
 /// Yanlış master şifre sayacı; yeniden başlatmada sıfırlanmasın diye veritabanında.
+/// Son denemenin zamanı ve adresi kilit ekranında gösterilir.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct LockState {
     pub failures: i64,
     pub locked_until: i64,
+    pub last_at: i64,
+    pub last_ip: String,
+}
+
+/// Sistem paneli sunucu konsolundan (`master-disable`) kapatıldı; yalnızca `master-enable` açar.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MasterDisabled {
+    pub at: i64,
+}
+
+/// Otomatik yedekleme: aralık (saat) ve saklanacak otomatik yedek sayısı.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct BackupSchedule {
+    pub enabled: bool,
+    pub every_hours: i64,
+    pub keep: i64,
+}
+
+impl Default for BackupSchedule {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            every_hours: 24,
+            keep: 7,
+        }
+    }
+}
+
+impl BackupSchedule {
+    pub const INTERVALS: [i64; 5] = [6, 12, 24, 72, 168];
+
+    pub fn validate(&self) -> AppResult<()> {
+        if !Self::INTERVALS.contains(&self.every_hours) {
+            return Err(AppError::validation("Yedekleme aralığı geçersiz."));
+        }
+        if !(1..=60).contains(&self.keep) {
+            return Err(AppError::validation(
+                "Saklanacak yedek sayısı 1 ile 60 arasında olmalı.",
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone)]

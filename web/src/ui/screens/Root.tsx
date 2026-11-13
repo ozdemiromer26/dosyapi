@@ -6,6 +6,7 @@ import { SetupScreen } from "./SetupScreen";
 import { MasterPanel } from "./MasterPanel";
 import { AppShell } from "./AppShell";
 import { Sheets } from "./Sheets";
+import { FilePreview } from "./FilePreview";
 
 export function Root({ v }: { v: Vals }) {
   return (
@@ -20,6 +21,7 @@ export function Root({ v }: { v: Vals }) {
   {v.isApp ? <AppShell v={v} /> : null}
 
   {v.sheetOpen ? <Sheets v={v} /> : null}
+  {v.preview ? <FilePreview v={v} /> : null}
 
   {v.genOpen ? (<>
     <div style={css("position:fixed;inset:0;background:rgba(16,16,24,.5);z-index:62;display:flex;align-items:center;justify-content:center;padding:14px")}>

@@ -1,5 +1,6 @@
 import { st } from "../styles";
 import { css } from "../css";
+import { PassInput } from "../parts";
 import type { Vals } from "../../vm/types";
 
 const CARD = "background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px";
@@ -40,7 +41,7 @@ export function ProfileSecurity({ v }: { v: Vals }) {
           </div>
           <div style={st.hintParagraph}>{T.ikiAdimSifreNot}</div>
           <div style={st.rowWrap8}>
-            <input name="ptPass" ref={v.refPtPass} type="password" autoComplete="current-password" placeholder={T.mevcutSifre} onChange={v.onField} style={css(INPUT)} />
+            <PassInput name="ptPass" ref={v.refPtPass} autoComplete="current-password" placeholder={T.mevcutSifre} onChange={v.onField} style={css(INPUT)} />
             <button onClick={v.recoveryRegenerate} style={css(BTN)}>{T.yeniKurtarma}</button>
             <button onClick={v.totpDisable} style={css(BTN + ";border-color:var(--errline);background:var(--err);color:var(--errtext)")}>{T.ikiAdimKapat}</button>
           </div>

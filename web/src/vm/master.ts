@@ -1,6 +1,6 @@
 // Görünüm modeli: master
 import type { Ctx, Vals } from "./types";
-import { tx } from "../i18n";
+import { tx, LOC } from "../i18n";
 import { FLAGS, MSECTIONS, PROJ_OPTS, ini } from "../domain/constants";
 /*IMPORTS*/
 
@@ -35,6 +35,26 @@ export function buildMaster(c: Ctx): () => Vals {
         () => app.saveRole(r, { perms: { ...r.perms, manage: r.perms.manage.indexOf(x.id) > -1 ? r.perms.manage.filter(z => z !== x.id) : [...r.perms.manage, x.id] } }))),
     }));
 
+    // Kilit durumu: otomatik (hatalı girişler) ya da yönetici kilidi; süreli ya da süresiz.
+    const when = (t) => new Date(t * 1000).toLocaleString(LOC(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    const lockRow = (u) => {
+      const lk = u.lock, n = u.failedLogins || 0;
+      const tries = n ? " · " + n + tx(" hatalı deneme") : "";
+      const label = !lk ? (n ? n + tx(" hatalı deneme") : "")
+        : lk.reason === "master" ? (lk.until ? tx("Yönetici kilidi · ") + when(lk.until) + tx(" tarihine kadar") : tx("Yönetici kilidi · süresiz"))
+        : (lk.until ? tx("Kilitli · ") + when(lk.until) + tx(" tarihine kadar") : tx("Süresiz kilitli")) + tries;
+      return {
+        isLocked: !!lk, lockLabel: label, hasLockLabel: !!label,
+        lockStyle: "flex:none;font-size:11px;font-weight:800;padding:4px 8px;border-radius:999px;" + (lk ? "background:var(--merr);color:var(--merrtext);border:1px solid var(--merrline)" : "background:var(--mwarn);color:var(--mwarntext)"),
+        onUnlock: () => app.act(() => app.api.post("/master/users/" + u.id + "/unlock", {}), u.name + tx(" hesabının kilidi kaldırıldı.")),
+        onLock: (e) => {
+          const val = e.target.value; e.target.value = "";
+          if (!val) return;
+          const minutes = val === "forever" ? null : Number(val);
+          app.act(() => app.api.post("/master/users/" + u.id + "/lock", { minutes }), u.name + tx(" hesabı kilitlendi; açık oturumları kapatıldı."));
+        },
+      };
+    };
     const mUsers = s.users.map(u => {
       const r = app.roleOf(u);
       const pickRoleId = (s.roleChoice || {})[u.id] || u.roleId || ((s.roles.slice().sort((a, b) => a.level - b.level).filter(x => x.level > 1)[0] || s.roles[0] || {}).id) || "";
@@ -50,6 +70,7 @@ export function buildMaster(c: Ctx): () => Vals {
         isPending: u.status === "pending",
         onApprove: () => app.act(() => app.api.put("/master/users/" + u.id + "/role", { roleId: pickRoleId }), u.name + tx(" onaylandı ve hesabı etkinleştirildi.")),
         onSendLink: () => app.issueLink(u),
+        ...lockRow(u),
         delLabel: s.mConfirm === "del:" + u.id ? tx("Emin misiniz? Sil") : tx("Sil"),
         onDelete: () => {
           if (s.mConfirm !== "del:" + u.id) { clearTimeout(app._mct); app._mct = setTimeout(() => app.setState({ mConfirm: null }), 4000); return app.setState({ mConfirm: "del:" + u.id }); }
@@ -58,6 +79,38 @@ export function buildMaster(c: Ctx): () => Vals {
         },
       };
     });
+
+    // Giriş kapısı: geçici kilit (hatalı denemeler) ya da konsoldan devre dışı.
+    const GATE_CMD = "sudo dosyapi-ctl master-enable";
+    const gateVals = (isDesktop: boolean) => {
+      const g = s.masterGate;
+      const blocked = !s.masterAuthed && !!g && (g.state === "locked" || g.state === "disabled");
+      const disabled = blocked && g.state === "disabled";
+      const hm = (t) => new Date(t * 1000).toLocaleTimeString(LOC(), { hour: "2-digit", minute: "2-digit" });
+      const full = (t) => new Date(t * 1000).toLocaleString(LOC(), { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+      const rows = !blocked ? [] : disabled
+        ? [{ k: tx("Devre dışı bırakıldı"), v: full(g.since) }]
+        : [
+          { k: tx("Kendiliğinden açılır"), v: hm(g.until) + " (" + Math.max(1, Math.ceil((g.until * 1000 - Date.now()) / 60000)) + tx(" dk sonra") + ")" },
+          { k: tx("Hatalı deneme"), v: g.failures + (g.lastAt ? tx(" · son ") + hm(g.lastAt) : "") },
+        ];
+      if (blocked && g.lastIp) rows.push({ k: tx("Son deneme IP"), v: g.lastIp });
+      return {
+        masterLocked: !s.masterAuthed && !blocked,
+        gateBlocked: blocked, gateDisabled: disabled,
+        gateTitle: disabled ? tx("Sistem paneli devre dışı bırakıldı") : tx("Sistem paneli kilitlendi"),
+        gateSub: disabled ? "" : tx("Çok sayıda hatalı master şifre denemesi"),
+        gateText: disabled ? tx("Sistem panelini tekrar etkinleştirmek için sunucu üzerinde aşağıdaki komutu çalıştırabilirsiniz:") : tx("Güvenliğiniz için panele giriş geçici olarak kapatıldı. Kilidi hemen açmak için sunucuda şu komutu çalıştırın:"),
+        gateCmd: GATE_CMD,
+        gateRows: rows,
+        gateRowKey: isDesktop ? "flex:0 0 120px" : "flex:0 0 96px",
+        gateCmdStyle: "display:flex;gap:8px;background:#0E1B3D;border-radius:10px;" + (isDesktop ? "flex-direction:row;align-items:center;padding:6px 6px 6px 14px" : "flex-direction:column;align-items:stretch;padding:12px"),
+        gateCmdFont: isDesktop ? "13.5px" : "12.5px",
+        gateCardMargin: isDesktop ? "56px auto" : "28px 16px",
+        copyGateCmd: () => { try { navigator.clipboard.writeText(GATE_CMD); app.toast(tx("Komut kopyalandı.")); } catch (e) { app.toast(GATE_CMD); } },
+        retryGate: () => app.loadGate(),
+      };
+    };
     Object.assign(c, { ddRow, mRoles, mUsers });
   return () => {
     const { domains, domainsTxt, fxAllKeys, fxRows, isDesktop, s } = c; /*LATE*/
@@ -82,7 +135,8 @@ export function buildMaster(c: Ctx): () => Vals {
       domainActiveNote: s.domainLock && domains.length ? tx("Kısıtlama açık: yalnızca şu alan adlarıyla kayıt olunabilir: ") + domainsTxt : "",
       domainHint: s.domainLock && domains.length ? tx("Yalnızca şu uzantılı e-postalarla kayıt olunabilir: ") + domainsTxt : "",
       closeMaster: () => app.closeMaster(),
-      masterLocked: !s.masterAuthed, masterAuthed: s.masterAuthed, masterError: s.masterError,
+      ...gateVals(isDesktop),
+      masterAuthed: s.masterAuthed, masterError: s.masterError,
       masterLogin: () => app.masterLogin(),
       saveMasterPass: () => {
         if (!app.fd.mNew || app.fd.mNew !== app.fd.mNew2) return app.toast(tx("Yeni şifre ile onayı aynı değil."));

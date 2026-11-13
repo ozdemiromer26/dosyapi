@@ -2,6 +2,7 @@
 import type { Ctx, Vals } from "./types";
 import { ini } from "../domain/constants";
 import { tx } from "../i18n";
+import { ADD_OPTION } from "../domain/constants";
 /*IMPORTS*/
 
 export function buildRecords(c: Ctx): () => Vals {
@@ -51,7 +52,7 @@ export function buildRecords(c: Ctx): () => Vals {
     const tel = (p) => String(p || "").replace(/^0/, "+90 ");
     const rows = A
       ? authorsList.map(a => ({
-          id: a.id, title: a.fullName, sub: [a.job, a.company].filter(Boolean).join(" · "), on: s.selAuthors.indexOf(a.id) > -1,
+          id: a.id, title: a.fullName, sub: [(a.jobs || []).join(", "), a.company].filter(Boolean).join(" · "), on: s.selAuthors.indexOf(a.id) > -1,
           k1: tx("TC"), v1: a.tc || "—", k2: tx("Telefon"), k2s: tx("Tel"), v2: tel(a.phone) || "—",
           checkStyle: a.checkStyle, checkMark: a.checkMark, onSelect: a.onSelect, onDoc: a.onDoc, onEdit: a.onEdit, onDelete: a.onDelete, canWrite: a.canWrite,
         }))
@@ -94,6 +95,8 @@ export function buildRecords(c: Ctx): () => Vals {
       addRecord: () => { app.fd = {}; app.setState({ sheet: { type: A ? "author" : "contractor" }, draft: {} }); },
       professionOptions: s.professions.map(p => ({ name: p })),
       contractorOptions: s.contractors.map(x => ({ id: x.id, title: x.title })),
+      canAddContractor: canWriteRecords,
+      onPrContractor: (e) => { if (e.target.value === ADD_OPTION) { e.target.value = ""; app.goAddRecord("contractor"); } else app.fd[e.target.name] = e.target.value; },
     };
   };
 }

@@ -24,12 +24,23 @@ fn people_ctx(id: &str) -> String {
     format!("projects.people:{id}")
 }
 
+fn assignment_from(r: &SqliteRow) -> AppResult<AuthorAssignment> {
+    Ok(AuthorAssignment {
+        job: r.try_get("job").map_err(db_err)?,
+        author_id: r.try_get("author_id").map_err(db_err)?,
+    })
+}
+
 fn author_ctx(field: &str, id: &str) -> String {
     format!("authors.{field}:{id}")
 }
 
 impl Db {
-    fn project_from(&self, r: &SqliteRow, author_ids: Vec<Id>) -> AppResult<Project> {
+    fn project_from(
+        &self,
+        r: &SqliteRow,
+        assignments: Vec<AuthorAssignment>,
+    ) -> AppResult<Project> {
         let id: String = r.try_get("id").map_err(db_err)?;
         let blob: Vec<u8> = r.try_get("people_enc").map_err(db_err)?;
         let plain = self.cipher.decrypt(&people_ctx(&id), &blob)?;
@@ -50,7 +61,7 @@ impl Db {
             note: r.try_get("note").map_err(db_err)?,
             photo_at: r.try_get("photo_at").map_err(db_err)?,
             photo_mime: r.try_get("photo_mime").map_err(db_err)?,
-            author_ids,
+            assignments,
             owners: people.owners,
             proxy: people.proxy,
             created_at: r.try_get("created_at").map_err(db_err)?,
@@ -68,14 +79,15 @@ impl Db {
         self.cipher.encrypt(&people_ctx(&project.id), &people)
     }
 
-    async fn author_ids(&self, project_id: &str) -> AppResult<Vec<Id>> {
-        sqlx::query_scalar(
-            "SELECT author_id FROM project_authors WHERE project_id = ? ORDER BY position",
+    async fn assignments(&self, project_id: &str) -> AppResult<Vec<AuthorAssignment>> {
+        let rows = sqlx::query(
+            "SELECT job, author_id FROM project_authors WHERE project_id = ? ORDER BY position",
         )
         .bind(project_id)
         .fetch_all(&self.pool)
         .await
-        .map_err(db_err)
+        .map_err(db_err)?;
+        rows.iter().map(assignment_from).collect()
     }
 
     fn author_from(&self, r: &SqliteRow) -> AppResult<Author> {
@@ -93,7 +105,8 @@ impl Db {
                 .cipher
                 .decrypt_text(&author_ctx("phone", &id), phone.as_deref())?,
             company: r.try_get("company").map_err(db_err)?,
-            job: r.try_get("job").map_err(db_err)?,
+            jobs: serde_json::from_str(&r.try_get::<String, _>("jobs").map_err(db_err)?)
+                .map_err(AppError::internal)?,
             sicil: r.try_get("sicil").map_err(db_err)?,
             address: self
                 .cipher
@@ -111,19 +124,19 @@ impl ProjectRepo for Db {
             .await
             .map_err(db_err)?;
         let links =
-            sqlx::query("SELECT project_id, author_id FROM project_authors ORDER BY position")
+            sqlx::query("SELECT project_id, job, author_id FROM project_authors ORDER BY position")
                 .fetch_all(&self.pool)
                 .await
                 .map_err(db_err)?;
         let mut out = Vec::with_capacity(rows.len());
         for row in &rows {
             let id: String = row.try_get("id").map_err(db_err)?;
-            let ids = links
+            let list = links
                 .iter()
                 .filter(|l| l.try_get::<String, _>("project_id").is_ok_and(|p| p == id))
-                .filter_map(|l| l.try_get("author_id").ok())
-                .collect();
-            out.push(self.project_from(row, ids)?);
+                .map(assignment_from)
+                .collect::<AppResult<Vec<_>>>()?;
+            out.push(self.project_from(row, list)?);
         }
         Ok(out)
     }
@@ -136,8 +149,8 @@ impl ProjectRepo for Db {
             .map_err(db_err)?;
         match row {
             Some(r) => {
-                let ids = self.author_ids(id).await?;
-                Ok(Some(self.project_from(&r, ids)?))
+                let list = self.assignments(id).await?;
+                Ok(Some(self.project_from(&r, list)?))
             }
             None => Ok(None),
         }
@@ -212,19 +225,20 @@ impl ProjectRepo for Db {
         Ok(())
     }
 
-    async fn set_authors(&self, id: &str, author_ids: &[Id]) -> AppResult<()> {
+    async fn set_authors(&self, id: &str, assignments: &[AuthorAssignment]) -> AppResult<()> {
         let mut tx = self.pool.begin().await.map_err(db_err)?;
         sqlx::query("DELETE FROM project_authors WHERE project_id = ?")
             .bind(id)
             .execute(&mut *tx)
             .await
             .map_err(db_err)?;
-        for (position, author) in author_ids.iter().enumerate() {
+        for (position, a) in assignments.iter().enumerate() {
             sqlx::query(
-                "INSERT INTO project_authors (project_id, author_id, position) VALUES (?, ?, ?)",
+                "INSERT INTO project_authors (project_id, job, author_id, position) VALUES (?, ?, ?, ?)",
             )
             .bind(id)
-            .bind(author)
+            .bind(&a.job)
+            .bind(&a.author_id)
             .bind(position as i64)
             .execute(&mut *tx)
             .await
@@ -265,7 +279,7 @@ impl AuthorRepo for Db {
 
     async fn insert(&self, a: &Author) -> AppResult<()> {
         sqlx::query(
-            "INSERT INTO authors (id, tc_enc, first, last, phone_enc, company, job, sicil, address_enc)
+            "INSERT INTO authors (id, tc_enc, first, last, phone_enc, company, jobs, sicil, address_enc)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&a.id)
@@ -274,7 +288,7 @@ impl AuthorRepo for Db {
         .bind(&a.last)
         .bind(self.cipher.encrypt_text(&author_ctx("phone", &a.id), &a.phone)?)
         .bind(&a.company)
-        .bind(&a.job)
+        .bind(serde_json::to_string(&a.jobs).map_err(AppError::internal)?)
         .bind(&a.sicil)
         .bind(self.cipher.encrypt_text(&author_ctx("address", &a.id), &a.address)?)
         .execute(&self.pool)
@@ -285,7 +299,7 @@ impl AuthorRepo for Db {
 
     async fn update(&self, a: &Author) -> AppResult<()> {
         sqlx::query(
-            "UPDATE authors SET tc_enc = ?, first = ?, last = ?, phone_enc = ?, company = ?, job = ?, sicil = ?, address_enc = ?
+            "UPDATE authors SET tc_enc = ?, first = ?, last = ?, phone_enc = ?, company = ?, jobs = ?, sicil = ?, address_enc = ?
              WHERE id = ?",
         )
         .bind(self.cipher.encrypt_text(&author_ctx("tc", &a.id), &a.tc)?)
@@ -293,7 +307,7 @@ impl AuthorRepo for Db {
         .bind(&a.last)
         .bind(self.cipher.encrypt_text(&author_ctx("phone", &a.id), &a.phone)?)
         .bind(&a.company)
-        .bind(&a.job)
+        .bind(serde_json::to_string(&a.jobs).map_err(AppError::internal)?)
         .bind(&a.sicil)
         .bind(self.cipher.encrypt_text(&author_ctx("address", &a.id), &a.address)?)
         .bind(&a.id)

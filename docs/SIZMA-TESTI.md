@@ -7,8 +7,8 @@ bağımsız denetimin yerini tutmaz.
 
 | Sınama | Araç | Sonuç |
 | --- | --- | --- |
-| Saldırı senaryoları | `security/pentest.py` | 335/335 geçti (hata ayıklama derlemesi) |
-| Sürüm derlemesi, gerçek Argon2id | `pentest.py --timing` | 344/344 geçti |
+| Saldırı senaryoları | `security/pentest.py` | 440/440 geçti (hata ayıklama derlemesi) |
+| Sürüm derlemesi, gerçek Argon2id | `pentest.py --timing` | 450/450 geçti |
 | Kullanıcı numaralandırma süresi | `pentest.py --timing` | Olmayan hesap 72 ms, var olan hesap 72 ms |
 | Güncelleme saldırıları | `security/update_test.py` | 18/18 geçti |
 | SQL enjeksiyonu taraması | sqlmap 1.10 (seviye 3, risk 2) | İki turda toplam 8 farklı uç noktada enjeksiyon bulunmadı |
@@ -29,8 +29,9 @@ içinde görünür, derlenmez. `cargo tree -i rsa` boş döner.
 
 Açık bulgu (11 Kasım 2026): `RUSTSEC-2026-0459` (`libsqlite3-sys` 0.30.1, gömülü SQLite < 3.54). Saldırganın veri
 klasörüne özel hazırlanmış bir veritabanı ve `-wal` dosyası koyabildiği durumda sorgular süreç belleğinden eski baytlar
-döndürebilir (yerel saldırı, bilgi sızıntısı). dosyapı yalnızca kendi oluşturduğu veritabanını açar ve dışarıdan
-veritabanı dosyası yükleme yolu yoktur; bu yüzden risk düşüktür. Düzeltme `libsqlite3-sys` ≥ 0.39 gerektirir; sqlx 0.9.0
+döndürebilir (yerel saldırı, bilgi sızıntısı). dosyapı yalnızca kendi oluşturduğu veritabanını açar; geri yüklemede
+yedekteki veritabanı ancak yedeğin tamamı `secret.key` ile doğrulandıktan sonra açılır, yani dışarıdan hazırlanmış bir
+veritabanı anahtar olmadan içeri sokulamaz. Bu yüzden risk düşüktür. Düzeltme `libsqlite3-sys` ≥ 0.39 gerektirir; sqlx 0.9.0
 bile `< 0.38` ile sınırlı olduğu için şu an yükseltilemiyor. sqlx yeni sürümü çıkınca yükseltilecek; istisna listesine
 bilerek eklenmedi, `cargo audit` hatırlatmaya devam eder.
 
@@ -54,7 +55,10 @@ bilerek eklenmedi, `cargo audit` hatırlatmaya devam eder.
 | Enjeksiyon | SQL yükleri, kalıcı XSS, CSS enjeksiyonu, e-posta başlık enjeksiyonu, denetim karakterleri, derin JSON, büyük gövde |
 | Dosya | Sahte uzantı, çift uzantı, SVG, HTML, boş dosya, yol geçişi, başlık enjeksiyonu, diskte düz veri araması |
 | Oturum | Sabitleme, çıkış sonrası yeniden kullanım, şifre değişiminde oturum kapatma, belirteç tekrarı |
-| Kaba kuvvet | Hesap kilidi, master kilidi, `X-Forwarded-For` ile sınır aşma |
+| Kaba kuvvet | Kademeli hesap kilidi (3/6/9/12 hata → 5 dk/15 dk/60 dk/süresiz), kilitliyken doğru şifre ve sayılmayan denemeler, süresiz kilidin zamanla ve şifre sıfırlamayla kalkmaması, Sistem Paneli'nde kilit görünürlüğü, kilit kaldırma (yetkisiz ve CSRF'siz denemeler dahil), süreli/süresiz yasak ve yasakla oturumun kapanması, master kilidi, `X-Forwarded-For` ile sınır aşma |
+| Çok meslekli müellif | Boş ve tanımsız meslek, tekrarların atılması, aynı müellifin iki meslek satırına atanması, taşımadığı mesleğe atanamama, meslek çıkarılınca atamanın kalkması |
+| Yedek | Panelden tam yedek ve doğrulama, yedekte düz metin (ad, TC, şirket, SQL şeması) araması, kullanıcı oturumuyla ve oturumsuz indirme, yol geçişi ve olmayan adlar, CSRF'siz anahtar indirme ve silme, yanlış master şifreyle anahtar, geçersiz ve bilinmeyen alanlı zamanlama; tek bayt değişikliği, kesilme, sona veri ekleme, başlık (zaman damgası) değişikliği, başka anahtar kimliği, sahte yedek dosyası, geçici dosya artığı |
+| Konsol | Konsoldan yedek ve doğrulama, bozuk yedek ve yanlış anahtarla doğrulama, sunucu çalışırken geri yükleme, başka anahtarla ve bozuk yedekle geri yükleme (veri yerinde kalır), doğrulanmış geri yükleme ve önceki verinin kenara alınması; `master-disable` ile panelin kapanması, açık oturumun düşmesi, kapalıyken doğru şifre; 5 hatada geçici kilit ve kilit ekranı bilgileri, `master-enable` ile kilit ve sayacın sıfırlanması, denetim günlüğü kayıtları; etkileşimsiz fabrika ayarı denemesinin reddi |
 | Denetim günlüğü | Değiştirme, silme, doğrudan veritabanı müdahalesinin tespiti |
 | Güncelleme | Kurcalanmış bildirim, yabancı anahtar, sürüm geri alma, bozuk paket, sahte iş emri, yol geçişi, sembolik bağlantı, geri dönüş |
 

@@ -165,7 +165,6 @@ if [ "$SOURCE" = 1 ]; then
 fi
 
 install -d -m 0700 -o "$APP_UID" -g "$APP_UID" "$DIR/data"
-install -d -m 0700 "$DIR/yedekler"
 umask 077
 cat > "$DIR/.env" <<ENV
 DOSYAPI_DOMAIN=$DOMAIN
@@ -217,7 +216,9 @@ cat <<DONE
   hesabını oluşturun. Belirteç bir kez kullanılır. HTTPS sertifikası ilk istekte alınır;
   sayfa ilk açılışta birkaç saniye bekletebilir.
 
-  Veriler            : $DIR/data   (gizli anahtar dahil; yedekleri sunucu dışında saklayın)
+  Veriler            : $DIR/data   (gizli anahtar: $DIR/data/secret.key)
+  Yedekler           : $DIR/data/app/backups   (her gün otomatik; anahtarla birlikte
+                       sunucu dışına da kopyalayın: sudo dosyapi-ctl backup /hedef/klasör)
   Yönetim            : sudo dosyapi-ctl help
     sudo dosyapi-ctl status       sudo dosyapi-ctl backup
     sudo dosyapi-ctl update       sudo dosyapi-ctl logs -f

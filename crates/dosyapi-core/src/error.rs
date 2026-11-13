@@ -24,6 +24,9 @@ pub enum AppError {
     Conflict(String),
     #[error("Çok fazla deneme yapıldı. Lütfen {retry_after_secs} saniye sonra tekrar deneyin.")]
     RateLimited { retry_after_secs: u64 },
+    /// Hesap kilitli (hatalı girişler ya da sistem paneli). İleti kullanıcıya gösterilir.
+    #[error("{0}")]
+    Locked(String),
     #[error("{0}")]
     PayloadTooLarge(String),
     #[error("{0}")]

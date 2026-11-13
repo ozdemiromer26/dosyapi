@@ -224,7 +224,7 @@ export function TemplatesScreen({ v }: { v: Vals }) {
                     <div ref={v.tplPrevRef}></div>
                   </>) : null}
                   </div>
-                  <div style={css("position:sticky;bottom:0;z-index:7;display:flex;align-items:center;gap:8px;padding:5px 10px;border-top:1px solid var(--line);background:var(--card);border-radius:0 0 14px 14px;flex-wrap:wrap")}>
+                  <div data-edbar="1" style={css(v.edBarStyle)}>
                     <span style={css("flex:1;min-width:120px;font-size:12px;font-weight:700;color:var(--muted)")}>{v.tplPaperLabel}</span>
                     <div style={css("display:flex;align-items:center;gap:4px")}>
                       <button onClick={v.zOutTpl} aria-label="zoom out" style={css("width:28px;height:28px;border:1px solid var(--line);background:var(--card);border-radius:7px;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center")}>−</button>

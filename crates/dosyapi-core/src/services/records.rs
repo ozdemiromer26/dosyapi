@@ -33,8 +33,9 @@ fn change(
 }
 
 impl RecordService {
-    async fn check_job(&self, job: &str) -> AppResult<()> {
-        if self.professions.list().await?.iter().any(|p| p.name == job) {
+    async fn check_jobs(&self, jobs: &[String]) -> AppResult<()> {
+        let known = self.professions.list().await?;
+        if jobs.iter().all(|job| known.iter().any(|p| &p.name == job)) {
             return Ok(());
         }
         Err(AppError::validation(
@@ -58,13 +59,13 @@ impl RecordService {
     ) -> AppResult<(Id, Submitted)> {
         let mode = Self::require_write(actor)?;
         let input = normalize_author(&input)?;
-        self.check_job(&input.job).await?;
+        self.check_jobs(&input.jobs).await?;
         let id = new_id();
         let item = change(
             PendingKind::Create,
             Entity::Author,
             format!("Yeni müellif: {} {}", input.first, input.last),
-            format!("{} · {}", input.job, input.company),
+            format!("{} · {}", input.jobs.join(", "), input.company),
             PendingPayload::AuthorCreate {
                 id: id.clone(),
                 input,
@@ -83,7 +84,7 @@ impl RecordService {
         let current = self.authors.get(id).await?.ok_or(AppError::NotFound)?;
         ensure_unlocked(self.pendings.as_ref(), id).await?;
         let input = normalize_author(&input)?;
-        self.check_job(&input.job).await?;
+        self.check_jobs(&input.jobs).await?;
         let patch = diff(&current.input(), &input)?;
         if patch.fields.is_empty() {
             return Ok(Submitted::Applied);

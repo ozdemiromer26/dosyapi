@@ -129,7 +129,7 @@ pub fn field_labels(fields: &[String]) -> String {
         "first" | "last" => "Ad soyad",
         "phone" => "Telefon",
         "company" => "Şirket",
-        "job" => "Meslek",
+        "jobs" => "Meslek",
         "sicil" => "Sicil",
         "address" => "Adres",
         "title" => "Unvan",
@@ -151,7 +151,7 @@ fn author_from(id: &str, input: AuthorInput) -> Author {
         last: input.last,
         phone: input.phone,
         company: input.company,
-        job: input.job,
+        jobs: input.jobs,
         sicil: input.sicil,
         address: input.address,
     }
@@ -283,6 +283,26 @@ pub fn normalize_project(input: &ProjectInput) -> AppResult<ProjectInput> {
     })
 }
 
+/// Meslek listesi: boşluklar kırpılır, tekrarlar atılır; en az bir, en çok sekiz meslek.
+pub fn normalize_jobs(jobs: &[String]) -> AppResult<Vec<String>> {
+    let mut out: Vec<String> = Vec::new();
+    for job in jobs {
+        let job = validate::required(job, "Meslek", 100)?;
+        if !out.contains(&job) {
+            out.push(job);
+        }
+    }
+    if out.is_empty() {
+        return Err(AppError::validation("En az bir meslek seçin."));
+    }
+    if out.len() > 8 {
+        return Err(AppError::validation(
+            "Bir müellife en çok 8 meslek verilebilir.",
+        ));
+    }
+    Ok(out)
+}
+
 pub fn normalize_author(input: &AuthorInput) -> AppResult<AuthorInput> {
     Ok(AuthorInput {
         tc: validate::tax_id(&input.tc)?,
@@ -290,7 +310,7 @@ pub fn normalize_author(input: &AuthorInput) -> AppResult<AuthorInput> {
         last: validate::text(&input.last, "Soyisim", 100)?,
         phone: validate::phone(&input.phone)?,
         company: validate::text(&input.company, "Şirket", 200)?,
-        job: validate::required(&input.job, "Meslek", 100)?,
+        jobs: normalize_jobs(&input.jobs)?,
         sicil: validate::text(&input.sicil, "Sicil", 64)?,
         address: validate::text(&input.address, "Adres", 300)?,
     })
@@ -339,7 +359,7 @@ impl ChangeApplier {
             note: input.note,
             photo_at: existing.map_or(0, |p| p.photo_at),
             photo_mime: existing.map(|p| p.photo_mime.clone()).unwrap_or_default(),
-            author_ids: existing.map(|p| p.author_ids.clone()).unwrap_or_default(),
+            assignments: existing.map(|p| p.assignments.clone()).unwrap_or_default(),
             owners: input.owners,
             proxy: input.proxy,
             created_at: existing.map_or(now, |p| p.created_at),
@@ -369,32 +389,46 @@ impl ChangeApplier {
 
     async fn assign_author(&self, id: &str, job: &str, author_id: &str) -> AppResult<()> {
         let project = self.projects.get(id).await?.ok_or(AppError::NotFound)?;
-        let authors = self.authors.list().await?;
         if !author_id.is_empty() {
-            let chosen = authors
-                .iter()
-                .find(|a| a.id == author_id)
+            let chosen = self
+                .authors
+                .get(author_id)
+                .await?
                 .ok_or(AppError::NotFound)?;
-            if chosen.job != job {
+            if !chosen.jobs.iter().any(|j| j == job) {
                 return Err(AppError::validation(
                     "Müellifin mesleği bu satırla uyuşmuyor.",
                 ));
             }
         }
-        let mut ids: Vec<Id> = project
-            .author_ids
+        let mut list: Vec<AuthorAssignment> = project
+            .assignments
             .into_iter()
-            .filter(|existing| {
-                authors
-                    .iter()
-                    .find(|a| &a.id == existing)
-                    .is_none_or(|a| a.job != job)
-            })
+            .filter(|a| a.job != job)
             .collect();
         if !author_id.is_empty() {
-            ids.push(author_id.to_string());
+            list.push(AuthorAssignment {
+                job: job.to_string(),
+                author_id: author_id.to_string(),
+            });
         }
-        self.projects.set_authors(id, &ids).await
+        self.projects.set_authors(id, &list).await
+    }
+
+    /// Müellifin artık taşımadığı mesleklerdeki proje atamalarını kaldırır.
+    async fn drop_stale_assignments(&self, author: &Author) -> AppResult<()> {
+        for project in self.projects.list().await? {
+            let keep: Vec<AuthorAssignment> = project
+                .assignments
+                .iter()
+                .filter(|a| a.author_id != author.id || author.jobs.contains(&a.job))
+                .cloned()
+                .collect();
+            if keep.len() != project.assignments.len() {
+                self.projects.set_authors(&project.id, &keep).await?;
+            }
+        }
+        Ok(())
     }
 
     pub async fn apply(&self, payload: &PendingPayload) -> AppResult<()> {
@@ -427,7 +461,9 @@ impl ChangeApplier {
             AuthorUpdate { id, input, patch } => {
                 let current = self.authors.get(id).await?.ok_or(AppError::NotFound)?;
                 let merged = merge(&current.input(), &normalize_author(input)?, patch)?;
-                self.authors.update(&author_from(id, merged)).await
+                let author = author_from(id, merged);
+                self.authors.update(&author).await?;
+                self.drop_stale_assignments(&author).await
             }
             AuthorDelete { id } => self.authors.delete(id).await,
             ContractorCreate { id, input } => {

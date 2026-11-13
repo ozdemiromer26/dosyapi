@@ -31,7 +31,7 @@ export function buildServerFiles(c: Ctx): () => Vals {
       const rowStyle = "display:flex;align-items:center;gap:9px;min-height:44px;padding:6px 10px 6px " + (10 + depth * 20) + "px;border-bottom:1px solid var(--mline);" + (depth === 0 ? "background:var(--mcard)" : "");
       if (n.file) {
         if (!fxHit(n, path)) return;
-        fxRows.push({ isFile: true, isFolder: false, name: n.name, meta: n.meta, ext: extOf(n.name), rowStyle, onDownload: () => app.download(n.name, n.url), onDelete: n.onDel });
+        fxRows.push({ isFile: true, isFolder: false, name: n.name, meta: n.meta, ext: extOf(n.name), rowStyle, onDownload: () => app.download(n.name, n.url), canPreview: !!app.previewKind(n.name), onPreview: () => app.openPreview(n.name, n.url), onDelete: n.onDel });
         return;
       }
       const c = fxCount(n, path);

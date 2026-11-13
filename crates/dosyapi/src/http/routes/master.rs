@@ -13,7 +13,7 @@ use axum::response::{AppendHeaders, IntoResponse, Response};
 use axum::routing::{get, post, put};
 use dosyapi_core::AppError;
 use dosyapi_core::model::*;
-use dosyapi_core::ports::{BackupInfo, SmtpConfig};
+use dosyapi_core::ports::{BackupInfo, BackupReport, SmtpConfig};
 use dosyapi_core::services::bootstrap::{FileView, file_view};
 use dosyapi_core::services::company::IdentityInput;
 use dosyapi_core::services::dns::{DnsConfig, DnsConfigInput};
@@ -24,6 +24,7 @@ use dosyapi_core::validate;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
+use std::time::Duration;
 use uuid::Uuid;
 
 #[derive(Deserialize)]
@@ -70,6 +71,20 @@ async fn logout(
         .into_response())
 }
 
+/// Giriş ekranının durumu (kilitli / devre dışı / açık). Oturum istemez.
+async fn gate(State(state): State<AppState>) -> ApiResult<Response> {
+    if state.services.setup.required().await? {
+        return Err(AppError::NotFound.into());
+    }
+    let gate = state.services.master.gate().await?;
+    let mut response = Json(gate).into_response();
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("no-store"),
+    );
+    Ok(response)
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct MasterUserView {
@@ -79,6 +94,18 @@ struct MasterUserView {
     role_id: Option<Id>,
     status: UserStatus,
     totp_enabled: bool,
+    /// Ardışık hatalı giriş sayısı.
+    failed_logins: i64,
+    /// Geçerli kilit: kaynağı ve bitişi (`None` süresiz). Kilit yoksa alan gelmez.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    lock: Option<LockView>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LockView {
+    reason: LockReason,
+    until: Option<i64>,
 }
 
 #[derive(Serialize)]
@@ -95,18 +122,27 @@ async fn state_view(
     MasterUser(auth): MasterUser,
 ) -> ApiResult<Json<Value>> {
     let s = &state.services;
+    let now = s.clock.now();
     let users: Vec<MasterUserView> = s
         .user_repo
         .list()
         .await?
         .into_iter()
-        .map(|u| MasterUserView {
-            id: u.id,
-            name: u.name,
-            email: u.email,
-            role_id: u.role_id,
-            status: u.status,
-            totp_enabled: u.totp_enabled,
+        .map(|u| {
+            let lock = u.lock_active(now).then_some(LockView {
+                reason: u.lock_reason,
+                until: u.locked_until,
+            });
+            MasterUserView {
+                id: u.id,
+                name: u.name,
+                email: u.email,
+                role_id: u.role_id,
+                status: u.status,
+                totp_enabled: u.totp_enabled,
+                failed_logins: u.failed_logins,
+                lock,
+            }
         })
         .collect();
     let files = s.files.all().await?;
@@ -355,6 +391,42 @@ async fn user_reset(
     ))
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UserLockInput {
+    /// Dakika; yoksa süresiz.
+    minutes: Option<i64>,
+}
+
+async fn user_lock(
+    State(state): State<AppState>,
+    _m: MasterUser,
+    Meta(meta): Meta,
+    Path(id): Path<Uuid>,
+    Body(input): Body<UserLockInput>,
+) -> ApiResult<StatusCode> {
+    state
+        .services
+        .users
+        .master_lock(&id.to_string(), input.minutes, &meta)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn user_unlock(
+    State(state): State<AppState>,
+    _m: MasterUser,
+    Meta(meta): Meta,
+    Path(id): Path<Uuid>,
+) -> ApiResult<StatusCode> {
+    state
+        .services
+        .users
+        .master_unlock(&id.to_string(), &meta)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 async fn user_clear_totp(
     State(state): State<AppState>,
     _m: MasterUser,
@@ -548,7 +620,12 @@ async fn update_apply(
         .master
         .confirm(&input.password, &meta)
         .await?;
-    state.services.backups.create("pre-update").await?;
+    if backup_now(&state, "guncelleme-oncesi").await?.is_none() {
+        return Err(AppError::conflict(
+            "Güncelleme öncesi yedek hâlâ alınıyor; bittiğinde yeniden deneyin.",
+        )
+        .into());
+    }
     let version = state.services.updates.apply(&meta).await?;
     Ok(Json(json!({ "version": version })))
 }
@@ -559,25 +636,194 @@ async fn update_status(State(state): State<AppState>, _m: MasterUser) -> ApiResu
     ))
 }
 
-async fn backups_list(
-    State(state): State<AppState>,
-    _m: MasterUser,
-) -> ApiResult<Json<Vec<BackupInfo>>> {
-    Ok(Json(state.services.backups.list().await?))
+/// Tam yedeği arka planda başlatır ve en çok 50 sn bekler. İstek süre sınırına takılsa bile
+/// yedek yarıda kalmaz; bitince listede görünür.
+async fn backup_now(state: &AppState, label: &'static str) -> ApiResult<Option<BackupInfo>> {
+    let backups = state.services.backups.clone();
+    let task = tokio::spawn(async move { backups.create(label).await });
+    match tokio::time::timeout(Duration::from_secs(50), task).await {
+        Ok(joined) => Ok(Some(joined.map_err(AppError::internal)??)),
+        Err(_) => Ok(None),
+    }
+}
+
+fn attachment(name: &str, size: Option<u64>, body: axum::body::Body) -> ApiResult<Response> {
+    use axum::http::{HeaderValue, header};
+    let mut response = Response::new(body);
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_str(&format!("attachment; filename=\"{name}\""))
+            .map_err(AppError::internal)?,
+    );
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/octet-stream"),
+    );
+    if let Some(size) = size {
+        headers.insert(header::CONTENT_LENGTH, HeaderValue::from(size));
+    }
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    Ok(response)
+}
+
+async fn backups_list(State(state): State<AppState>, _m: MasterUser) -> ApiResult<Json<Value>> {
+    let schedule: BackupSchedule = state
+        .services
+        .settings
+        .get_json(KEY_BACKUP_SCHEDULE)
+        .await?
+        .unwrap_or_default();
+    Ok(Json(json!({
+        "items": state.services.backups.list().await?,
+        "schedule": schedule,
+        "intervals": BackupSchedule::INTERVALS,
+    })))
 }
 
 async fn backups_create(
     State(state): State<AppState>,
     _m: MasterUser,
     Meta(meta): Meta,
-) -> ApiResult<Json<BackupInfo>> {
-    let info = state.services.backups.create("elle").await?;
+) -> ApiResult<Response> {
     state
         .services
         .audit
-        .master(&meta, "backup.create", &info.name, "")
+        .master(&meta, "backup.create", "", "elle")
         .await?;
-    Ok(Json(info))
+    Ok(match backup_now(&state, "elle").await? {
+        Some(info) => Json(json!({ "done": true, "backup": info })).into_response(),
+        None => (StatusCode::ACCEPTED, Json(json!({ "done": false }))).into_response(),
+    })
+}
+
+async fn backup_download(
+    State(state): State<AppState>,
+    _m: MasterUser,
+    Meta(meta): Meta,
+    Path(name): Path<String>,
+) -> ApiResult<Response> {
+    let (info, source) = state.services.backups.open(&name).await?;
+    state
+        .services
+        .audit
+        .master(&meta, "backup.download", &info.name, "")
+        .await?;
+    let stream = futures_util::stream::unfold(source, |mut source| async move {
+        match source.next_chunk().await {
+            Ok(Some(chunk)) => Some((
+                Ok::<_, std::io::Error>(axum::body::Bytes::from(chunk)),
+                source,
+            )),
+            Ok(None) => None,
+            Err(_) => Some((Err(std::io::Error::other("okuma hatası")), source)),
+        }
+    });
+    attachment(
+        &info.name,
+        Some(info.size),
+        axum::body::Body::from_stream(stream),
+    )
+}
+
+async fn backup_delete(
+    State(state): State<AppState>,
+    _m: MasterUser,
+    Meta(meta): Meta,
+    Path(name): Path<String>,
+) -> ApiResult<StatusCode> {
+    state.services.backups.delete(&name).await?;
+    state
+        .services
+        .audit
+        .master(&meta, "backup.delete", &name, "")
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn backup_verify(
+    State(state): State<AppState>,
+    _m: MasterUser,
+    Meta(meta): Meta,
+    Path(name): Path<String>,
+) -> ApiResult<Json<BackupReport>> {
+    let backups = state.services.backups.clone();
+    let target = name.clone();
+    let task = tokio::spawn(async move { backups.verify(&target).await });
+    let report = match tokio::time::timeout(Duration::from_secs(50), task).await {
+        Ok(joined) => joined.map_err(AppError::internal)??,
+        Err(_) => {
+            return Err(AppError::conflict(
+                "Doğrulama 50 saniyede bitmedi; büyük yedekleri sunucuda `dosyapi-ctl verify` ile doğrulayın.",
+            )
+            .into());
+        }
+    };
+    let outcome = if report.ok { "sağlam" } else { "sorunlu" };
+    state
+        .services
+        .audit
+        .master(&meta, "backup.verify", &name, outcome)
+        .await?;
+    Ok(Json(report))
+}
+
+/// Geri yükleme için gereken ikinci dosya. Master şifre yeniden sorulur.
+async fn backup_key(
+    State(state): State<AppState>,
+    _m: MasterUser,
+    Meta(meta): Meta,
+    Body(input): Body<ConfirmInput>,
+) -> ApiResult<Response> {
+    state
+        .services
+        .master
+        .confirm(&input.password, &meta)
+        .await?;
+    let key = state.services.backups.secret_key().await?;
+    state
+        .services
+        .audit
+        .master(&meta, "backup.key_download", "", "")
+        .await?;
+    let size = key.len() as u64;
+    attachment("secret.key", Some(size), axum::body::Body::from(key))
+}
+
+async fn backup_schedule(
+    State(state): State<AppState>,
+    _m: MasterUser,
+    Meta(meta): Meta,
+    Body(input): Body<BackupSchedule>,
+) -> ApiResult<StatusCode> {
+    input.validate()?;
+    state
+        .services
+        .settings
+        .set_json(KEY_BACKUP_SCHEDULE, &input)
+        .await?;
+    let detail = format!(
+        "{} · {} saat · {} adet",
+        if input.enabled { "açık" } else { "kapalı" },
+        input.every_hours,
+        input.keep
+    );
+    state
+        .services
+        .audit
+        .master(&meta, "backup.schedule", "", &detail)
+        .await?;
+    if input.enabled {
+        state
+            .services
+            .backups
+            .prune("otomatik", input.keep as usize)
+            .await?;
+    }
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Deserialize)]
@@ -686,7 +932,12 @@ async fn factory_reset(
         .master
         .confirm(&input.password, &meta)
         .await?;
-    state.services.backups.create("pre-reset").await?;
+    if backup_now(&state, "sifirlama-oncesi").await?.is_none() {
+        return Err(AppError::conflict(
+            "Silme öncesi yedek hâlâ alınıyor; bittiğinde yeniden deneyin.",
+        )
+        .into());
+    }
     state
         .services
         .audit
@@ -722,6 +973,8 @@ pub fn router() -> Router<AppState> {
         .route("/master/users/{id}", axum::routing::delete(user_delete))
         .route("/master/users/{id}/reset-link", post(user_reset))
         .route("/master/users/{id}/clear-totp", post(user_clear_totp))
+        .route("/master/users/{id}/lock", post(user_lock))
+        .route("/master/users/{id}/unlock", post(user_unlock))
         .route("/master/files/{id}", get(file_get).delete(file_delete))
         .route("/master/smtp", get(smtp_get).put(smtp_put))
         .route("/master/smtp/test", post(smtp_test))
@@ -732,7 +985,15 @@ pub fn router() -> Router<AppState> {
         .route("/master/update/check", post(update_check))
         .route("/master/update/apply", post(update_apply))
         .route("/master/update/status", get(update_status))
+        .route("/master/gate", get(gate))
         .route("/master/backups", get(backups_list).post(backups_create))
+        .route("/master/backups/key", post(backup_key))
+        .route("/master/backups/schedule", put(backup_schedule))
+        .route(
+            "/master/backups/{name}",
+            get(backup_download).delete(backup_delete),
+        )
+        .route("/master/backups/{name}/verify", post(backup_verify))
         .route("/master/password", post(password))
         .route("/master/totp/begin", post(totp_begin))
         .route("/master/totp/confirm", post(totp_confirm))

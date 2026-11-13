@@ -33,7 +33,8 @@ export class EditorController extends AppCore {
       el.contentEditable = "true"; el.spellcheck = false; el.dataset.docEdit = "1";
       el.innerHTML = cleanHtml(this._zh[z] || "");
       this.relabel(el);
-      el.oninput = () => this.syncZones(false, true);
+      el.oninput = () => { this.syncZones(false, true); this.keepCaretVisible(); };
+      el.onkeyup = (e) => { if (/^(Arrow|Page|Home|End|Enter)/.test(e.key)) this.keepCaretVisible(); };
       el.onfocus = () => { this._zone = z; try { document.execCommand("defaultParagraphSeparator", false, "p"); } catch (e) {} };
       el.onpointermove = (e) => { if (this._drag || e.pointerType === "touch") return; const h = this.tblHit(e, el), cu = h ? (h.kind === "col" ? "col-resize" : "row-resize") : ""; if (el.style.cursor !== cu) el.style.cursor = cu; };
       el.onpointerdown = (e) => { if (e.button !== 0) return; const h = this.tblHit(e, el); if (!h) return; e.preventDefault(); this.tblDrag(e, h, el); };
@@ -41,6 +42,7 @@ export class EditorController extends AppCore {
       el.addEventListener("touchstart", (e) => { const t = e.touches[0]; if (t && this.tblHit({ target: t.target, clientX: t.clientX, clientY: t.clientY, pointerType: "touch" }, el)) e.preventDefault(); }, { passive: false });
       el.onclick = (e) => {
         const img = e.target && e.target.tagName === "IMG" ? e.target : null; this._img = img; if (!!img !== !!this.state.edImg) this.setState({ edImg: !!img });
+        this.imgHandles();
         // Değişken çipine tıklamak onu seçer: boyut, renk, yazı tipi ve kalın/italik çipe uygulanır.
         const chip = e.target && e.target.closest ? e.target.closest("[data-v]") : null;
         if (chip && el.contains(chip)) { this._zone = z; this.selectChip(chip); this.onSel(); }
@@ -53,6 +55,20 @@ export class EditorController extends AppCore {
         else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); this.histGo(1); }
       };
     });
+  }
+  /** Yazarken imleç üstteki şeridin ve alttaki yakınlaştırma çubuğunun arkasında kalmasın:
+   *  tarayıcı imleci pencere kenarına kadar kaydırır, yapışkan çubukları hesaba katmaz. */
+  keepCaretVisible() {
+    const sel = window.getSelection(); if (!sel || !sel.rangeCount) return;
+    const r = sel.getRangeAt(0);
+    let rect = r.getBoundingClientRect();
+    if (!rect.height) { const n = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentNode; if (n && n.getBoundingClientRect) rect = n.getBoundingClientRect(); }
+    if (!rect.height) return;
+    const bar = document.querySelector("[data-edbar]"), rib = document.querySelector("[data-stickbar]");
+    const bottom = (bar ? bar.getBoundingClientRect().top : window.innerHeight) - 56;
+    const top = (rib ? rib.getBoundingClientRect().bottom : 0) + 24;
+    if (rect.bottom > bottom) window.scrollBy(0, rect.bottom - bottom);
+    else if (rect.top < top) window.scrollBy(0, rect.top - top);
   }
   relabel(root) {
     // Çip çevresinin yazı tipini ve boyutunu alır (font:inherit). Rengi normalde marka rengidir;
@@ -431,5 +447,68 @@ export class EditorController extends AppCore {
     if (gone) { this._range = null; this.setState({ edInTable: false }); }
     this.syncZones();
   }
-  edImgSet(st) { if (!this._img || !this._img.isConnected) return; Object.assign(this._img.style, st); this.syncZones(); }
+  edImgSet(st) {
+    if (!this._img || !this._img.isConnected) return;
+    // Yüzde boyut seçilince tutamaçla verilmiş sabit yükseklik kalksın, oran korunsun.
+    if ("width" in st && !("height" in st)) st = { ...st, height: "" };
+    Object.assign(this._img.style, st); this.syncZones();
+  }
+  /** Seçili görselin (logo dahil) çevresine Word'deki gibi 8 tutamaçlı çerçeve çizer.
+   *  Köşeler oranı koruyarak, kenarlar tek yönde boyutlandırır; sürüklerken boyut gösterilir.
+   *  Çerçeve düzenlenebilir alanın dışında (body'de) durur, şablon HTML'ine girmez. */
+  imgHandles() {
+    if (this._ihLoop) return;
+    const box = document.createElement("div");
+    box.setAttribute("data-imgbox", "1");
+    box.style.cssText = "position:fixed;z-index:8;pointer-events:none;outline:1.5px solid var(--pri,#1E4FD8);display:none";
+    const tip = document.createElement("div");
+    tip.style.cssText = "position:absolute;left:50%;top:100%;transform:translate(-50%,6px);background:#111;color:#fff;font:700 11px/1 var(--sans,sans-serif);padding:4px 6px;border-radius:5px;white-space:nowrap;display:none";
+    box.appendChild(tip);
+    const H = { nw: [0, 0], n: [50, 0], ne: [100, 0], e: [100, 50], se: [100, 100], s: [50, 100], sw: [0, 100], w: [0, 50] };
+    const CUR = { nw: "nwse", se: "nwse", ne: "nesw", sw: "nesw", n: "ns", s: "ns", e: "ew", w: "ew" };
+    Object.keys(H).forEach((k) => {
+      const h = document.createElement("div");
+      h.style.cssText = "position:absolute;width:10px;height:10px;margin:-5px 0 0 -5px;background:#fff;border:1.5px solid var(--pri,#1E4FD8);border-radius:2px;pointer-events:auto;touch-action:none;cursor:" + CUR[k] + "-resize;left:" + H[k][0] + "%;top:" + H[k][1] + "%";
+      h.addEventListener("pointerdown", (e) => this.imgDrag(e, k, tip));
+      box.appendChild(h);
+    });
+    document.body.appendChild(box);
+    const tick = () => {
+      const img = this._img;
+      const live = img && img.isConnected && this.state.tplDraft && this.state.tplMode !== "preview";
+      if (!live) { box.remove(); this._ihLoop = null; return; }
+      const r = img.getBoundingClientRect();
+      Object.assign(box.style, { display: "block", left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px" });
+      this._ihLoop = requestAnimationFrame(tick);
+    };
+    this._ihLoop = requestAnimationFrame(tick);
+  }
+  imgDrag(e, k, tip) {
+    const img = this._img; if (!img) return;
+    e.preventDefault(); e.stopPropagation();
+    const target = e.currentTarget; target.setPointerCapture(e.pointerId);
+    const r0 = img.getBoundingClientRect(), w0 = img.offsetWidth || 1, h0 = img.offsetHeight || 1;
+    const z = r0.width / w0 || 1, x0 = e.clientX, y0 = e.clientY, ratio = h0 / w0;
+    const block = img.closest("p,div,td,th,li,h1,h2,h3") || img.parentElement;
+    const maxW = Math.max(16, (block ? block.clientWidth : w0 * 4) || w0 * 4);
+    const fx = k.includes("e") ? 1 : k.includes("w") ? -1 : 0, fy = k.includes("s") ? 1 : k.includes("n") ? -1 : 0;
+    const corner = fx !== 0 && fy !== 0;
+    const clampW = (w) => Math.round(Math.max(16, Math.min(maxW, w)));
+    tip.style.display = "block";
+    const move = (ev) => {
+      const dx = (ev.clientX - x0) / z * fx, dy = (ev.clientY - y0) / z * fy;
+      let w = w0, h = h0;
+      if (corner) { w = clampW(w0 + Math.max(dx, dy / ratio)); h = Math.round(w * ratio); }
+      else if (fx) w = clampW(w0 + dx);
+      else h = Math.round(Math.max(16, h0 + dy));
+      img.style.maxWidth = "100%"; img.style.width = w + "px"; img.style.height = (corner || fy) ? h + "px" : h0 + "px";
+      tip.textContent = Math.round(img.offsetWidth) + " × " + Math.round(img.offsetHeight) + " px";
+    };
+    const up = () => {
+      target.removeEventListener("pointermove", move); target.removeEventListener("pointerup", up); target.removeEventListener("pointercancel", up);
+      tip.style.display = "none";
+      this.syncZones();
+    };
+    target.addEventListener("pointermove", move); target.addEventListener("pointerup", up); target.addEventListener("pointercancel", up);
+  }
 }

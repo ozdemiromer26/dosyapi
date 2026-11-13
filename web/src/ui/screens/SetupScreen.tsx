@@ -2,7 +2,7 @@ import { st } from "../styles";
 import React from "react";
 import { css } from "../css";
 import type { Vals } from "../../vm/types";
-import { AuthBackdrop, AUTH_BG, NoteBox } from "../parts";
+import { AuthBackdrop, AUTH_BG, NoteBox, PassInput } from "../parts";
 
 /** İlk kurulum: dört adımlı sihirbaz (belirteç → şirket → sistem paneli → ilk yönetici) ve özet.
  *  Adımlar yalnızca istemci durumudur; kurulum son adımda tek istekle (`/setup`) yapılır. */
@@ -37,8 +37,10 @@ export function SetupScreen({ v }: { v: Vals }) {
   const field = (k: keyof F, label: string, type = "text", hint = "", extra = "") => (
     <label style={css(LABEL + extra)}>
       {label}
-      <input name={k} type={type} value={f[k]} onChange={set(k)} placeholder={hint} autoComplete={type === "password" ? "new-password" : "off"}
-        style={css(INPUT + (k === "sToken" ? ";font-family:var(--mono);font-weight:500;letter-spacing:.04em" : ""))} />
+      {type === "password"
+        ? <PassInput name={k} value={f[k]} onChange={set(k)} placeholder={hint} autoComplete="new-password" style={css(INPUT)} />
+        : <input name={k} type={type} value={f[k]} onChange={set(k)} placeholder={hint} autoComplete="off"
+            style={css(INPUT + (k === "sToken" ? ";font-family:var(--mono);font-weight:500;letter-spacing:.04em" : ""))} />}
     </label>
   );
 

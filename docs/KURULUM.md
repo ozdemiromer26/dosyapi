@@ -62,17 +62,21 @@ Alan adınız yoksa denemek için IP'den türetilen bir ad kullanabilirsiniz: su
 | `sudo dosyapi-ctl status` | Servisler, sürüm, adres |
 | `sudo dosyapi-ctl logs -f` | Canlı günlük |
 | `sudo dosyapi-ctl start` / `restart` | Başlat / yeniden başlat |
-| `sudo dosyapi-ctl backup` | Tutarlı yedek (çalışıyorsa birkaç saniyelik kesinti) → `/opt/dosyapi/yedekler` |
-| `sudo dosyapi-ctl restore <file>` | Yedekten döner; mevcut veri `data.eski-*` olarak kenara alınır |
+| `sudo dosyapi-ctl backup [klasör]` | Tam yedek (veritabanı + dosyalar, şifreli) alır ve doğrular; uygulama durmaz. Klasör verilirse yedek ve `secret.key` oraya da kopyalanır |
+| `sudo dosyapi-ctl verify <yedek> [--key secret.key]` | Yedeğin bütünlüğünü uçtan uca doğrular (başka sunucunun yedeği için `--key`) |
+| `sudo dosyapi-ctl restore <yedek> [--key secret.key]` | Yedeği doğrular, uygulamayı durdurup geri yükler; mevcut veri `data/app/onceki-*` klasörüne taşınır |
 | `sudo dosyapi-ctl update [version]` | Önce yedek alır, yeni sürüme geçer; sağlıklı açılmazsa önceki sürüme döner |
 | `sudo dosyapi-ctl build [ref]` | Kaynak koddan imaj derler (`main` ya da `v1.2.3`) |
 | `sudo dosyapi-ctl auto-update on\|off` | Gece güncellemesi (04:00 civarı) |
 | `sudo dosyapi-ctl token` | Yeni kurulum belirteci (ilk kurulum bitmediyse) |
-| `sudo dosyapi-ctl master-reset` | Master şifreyi ve master iki adımlı doğrulamayı sıfırlar |
+| `sudo dosyapi-ctl master-reset` | Master şifreyi sıfırlar; master iki adımlı doğrulaması, kilit ve panel oturumları da kalkar |
+| `sudo dosyapi-ctl master-disable` | Sistem Paneli'ni kapatır; açık panel oturumları düşer, yalnızca `master-enable` açar |
+| `sudo dosyapi-ctl master-enable` | Sistem Paneli'ni açar; hatalı denemelerden gelen geçici kilidi ve sayacı sıfırlar (şifre değişmez) |
+| `sudo dosyapi-ctl factory-reset` | Tüm veriyi siler. Önce tam yedek alır; onay için sunucu adresini aynen yazmanız istenir |
 | `sudo dosyapi-ctl uninstall` | Servisleri kaldırır; veriler kalır |
 
-Yedek arşivi gizli anahtarı da içerir: sunucu dışında, güvenli bir yerde saklayın. Arşivi kaybetmek veriyi kaybetmek,
-başkasının eline geçmesi veriyi açması demektir.
+Yedek dosyası `secret.key` olmadan açılamaz; ikisini ayrı yerlerde, sunucu dışında saklayın. Anahtarı kaybetmek veriyi
+kaybetmek, ikisinin birlikte başkasının eline geçmesi veriyi açması demektir. Ayrıntı: [Yedekleme](#yedekleme).
 
 ### Yerleşim
 
@@ -81,8 +85,8 @@ başkasının eline geçmesi veriyi açması demektir.
 | `/opt/dosyapi/.env` | Alan adı ve imaj sürümü |
 | `/opt/dosyapi/data/config.toml` | Uygulama yapılandırması |
 | `/opt/dosyapi/data/secret.key` | Ana şifreleme anahtarı |
-| `/opt/dosyapi/data/app` | Veritabanı, şifreli dosyalar, uygulama içi yedekler |
-| `/opt/dosyapi/yedekler` | `dosyapi-ctl backup` arşivleri (son 14 tanesi tutulur) |
+| `/opt/dosyapi/data/app` | Veritabanı ve şifreli dosyalar |
+| `/opt/dosyapi/data/app/backups` | Tam yedekler (`.dsyb`): otomatik, panelden ve konsoldan alınanlar |
 
 ### Güvenlik notları
 
@@ -114,7 +118,7 @@ yerleştirir, systemd servislerini başlatır ve kurulum belirtecini yazar. Sonr
 | `/etc/dosyapi/secret.key` | Ana şifreleme anahtarı. **Ayrıca yedekleyin.** |
 | `/var/lib/dosyapi/dosyapi.sqlite` | Veritabanı |
 | `/var/lib/dosyapi/files` | Şifreli dosyalar |
-| `/var/lib/dosyapi/backups` | Günlük yedekler |
+| `/var/lib/dosyapi/backups` | Tam yedekler (`.dsyb`) |
 
 ## HTTPS seçenekleri
 
@@ -147,22 +151,65 @@ docker compose logs dosyapi   # kurulum belirteci
 
 ## Yedekleme
 
-Her gün otomatik yedek alınır. Elle almak için Sistem Paneli → Sistem ya da:
+Yedek **tam yedektir**: veritabanı ve tüm yüklenen dosyalar tek bir `.dsyb` dosyasındadır. Dosya `secret.key`'den
+türetilen anahtarla şifreli ve kimlik doğrulamalıdır: tek bir bayt değişirse, dosya kesilirse ya da başka bir sunucunun
+anahtarıyla alınmışsa doğrulama bunu yakalar ve geri yükleme yapılmaz. Eski yedekler yedeğe girmez.
+
+Geri yüklemek için **iki dosya** gerekir: yedek dosyası ve o sunucunun `secret.key` dosyası.
+
+- **Otomatik:** Sistem Paneli → Sistem → Yedekler'de aralık (6 saatten haftaya) ve saklanacak sayı seçilir. Varsayılan: her
+  gün, son 7 otomatik yedek. Sayı dolunca en eski otomatik yedek silinir; elle alınanlar siz silene kadar kalır.
+- **Panelden:** "Şimdi yedek al", listeden İndir / Doğrula / Sil. Anahtar dosyası aynı bölümden master şifreyle indirilir.
+- **Konsoldan:**
 
 ```bash
-sudo -u dosyapi /opt/dosyapi/bin/dosyapi --config /etc/dosyapi/config.toml backup
+sudo dosyapi-ctl backup                    # Docker
+sudo dosyapi-ctl backup /mnt/usb/dosyapi   # yedek + secret.key bu klasöre de kopyalanır
+sudo -u dosyapi /opt/dosyapi/bin/dosyapi --config /etc/dosyapi/config.toml backup   # systemd
 ```
 
-Yedek veritabanını kapsar. Tam yedek için `/var/lib/dosyapi/files` klasörünü ve `/etc/dosyapi/secret.key` dosyasını da ayrı
-bir yere kopyalayın. Anahtar olmadan yedek açılamaz.
-
-## Master şifreyi unutursanız
-
-Sunucu konsolundan sıfırlanır (iki adımlı doğrulamayı ve kilidi de kaldırır):
+### Doğrulama ve geri yükleme
 
 ```bash
-sudo -u dosyapi /opt/dosyapi/bin/dosyapi --config /etc/dosyapi/config.toml master-reset
+sudo dosyapi-ctl verify /opt/dosyapi/data/app/backups/dosyapi-....dsyb
+sudo dosyapi-ctl restore /opt/dosyapi/data/app/backups/dosyapi-....dsyb
 ```
+
+Başka bir sunucunun yedeğini (ör. sunucu taşırken) geri yüklerken o sunucunun anahtarını verin; anahtar bu sunucunun
+anahtarı olur, eskisi de saklanır:
+
+```bash
+sudo dosyapi-ctl restore yedek.dsyb --key secret.key
+```
+
+Geri yükleme önce yedeğin tamamını doğrular, veritabanı bütünlüğünü ve her kayıtlı dosyanın yedekte olduğunu denetler; ancak
+sonra mevcut veriyle yer değiştirir. Mevcut veri silinmez, `onceki-<zaman>` klasörüne taşınır. systemd kurulumunda önce
+servisi durdurun (`sudo systemctl stop dosyapi`), komutu `dosyapi` kullanıcısıyla çalıştırın, sonra başlatın.
+
+## Sistem Paneli: şifre, kilit, kapatma
+
+5 hatalı master şifre denemesinde panel geçici olarak kilitlenir (1 dakikadan başlar, en çok 1 saat). Kilit ekranında açılma
+zamanı, deneme sayısı ve son denemenin IP adresi görünür. Hemen açmak ya da paneli tamamen kapatıp açmak için:
+
+```bash
+sudo dosyapi-ctl master-enable     # kilidi ve sayacı sıfırlar, kapalıysa açar
+sudo dosyapi-ctl master-disable    # paneli kapatır; yalnızca master-enable açar
+sudo dosyapi-ctl master-reset      # master şifreyi unuttuysanız: yeni şifre (2FA ve kilit de sıfırlanır)
+```
+
+systemd kurulumunda aynı komutlar `sudo -u dosyapi /opt/dosyapi/bin/dosyapi --config /etc/dosyapi/config.toml <komut>`
+biçiminde çalışır. Tüm bu işlemler denetim günlüğüne yazılır.
+
+## Fabrika ayarlarına dönüş
+
+```bash
+sudo dosyapi-ctl factory-reset
+```
+
+Tüm projeler, belgeler, kullanıcılar ve ayarlar silinir; denetim günlüğü kalır. Önce otomatik bir tam yedek alınır ve
+doğrulanır. Yanlışlıkla çalıştırılmasın diye yalnızca etkileşimli terminalde çalışır ve sunucunun alan adını (yoksa şirket
+adını) aynen yazmanızı ister. Sonunda yeni kurulum belirteci verilir. Sistem Paneli'ndeki karşılığı master şifre ve onay
+metni ister.
 
 ## E-posta
 

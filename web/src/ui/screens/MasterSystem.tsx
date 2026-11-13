@@ -38,14 +38,51 @@ export function MasterSystem({ v }: { v: Vals }) {
       </Card>
 
       <Card title={T.yedekler} note={T.yedeklerNot}>
-        <Row><Btn onClick={v.createBackup}>{T.yedekAl}</Btn></Row>
+        <Row>
+          <Btn kind="primary" onClick={v.createBackup} disabled={v.backupBusy}>{v.backupBusy ? T.yedekAliniyor : T.yedekAl}</Btn>
+        </Row>
+
+        <div style={css("display:flex;flex-direction:column;gap:9px;border:1px solid var(--mline);border-radius:12px;padding:12px;background:var(--mcard2)")}>
+          <button onClick={v.onSchedToggle} style={css("display:flex;align-items:center;gap:10px;height:40px;padding:0;border:none;background:transparent;text-align:left;cursor:pointer")}>
+            <span style={css("flex:1;font-size:13px;font-weight:700;color:var(--mink)")}>{T.otomatikYedek}</span>
+            <span style={css(v.schedTrack)}><span style={css(v.schedKnob)}></span></span>
+          </button>
+          {v.schedOn ? (
+            <Row key={v.schedKey}>
+              <Select label={T.yedekSikligi} name="bkEvery" value={v.schedEvery} options={v.schedEveryOptions} onChange={v.onSchedEvery} />
+              <Select label={T.saklanacakYedek} name="bkKeep" value={v.schedKeep} options={v.schedKeepOptions} onChange={v.onSchedKeep} />
+            </Row>
+          ) : null}
+          <div style={css("font-size:12px;color:var(--mmuted);line-height:1.55")}>{T.otomatikYedekNot}</div>
+        </div>
+
         {(v.backupRows || []).map((b: any) => (
-          <div key={b.name} style={css("display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--mline);border-radius:10px;padding:9px 12px;background:var(--mcard2)")}>
-            <span style={css("flex:1;min-width:180px;font-family:var(--mono);font-size:12px;color:var(--mtext);word-break:break-all")}>{b.name}</span>
-            <span style={css("font-size:12px;color:var(--mmuted);font-weight:600")}>{b.meta}</span>
+          <div key={b.name} style={css("display:flex;flex-direction:column;gap:8px;border:1px solid var(--mline);border-radius:10px;padding:10px 12px;background:var(--mcard2)")}>
+            <div style={css("display:flex;gap:10px;align-items:center;flex-wrap:wrap")}>
+              <div style={css("flex:1;min-width:200px;display:flex;flex-direction:column;gap:3px")}>
+                <span style={css("font-family:var(--mono);font-size:12px;color:var(--mtext);word-break:break-all")}>{b.name}</span>
+                <span style={css("font-size:12px;color:var(--mmuted);font-weight:600")}>{b.labelText} · {b.meta}</span>
+              </div>
+              <div style={css("display:flex;gap:8px;flex-wrap:wrap")}>
+              <a href={b.href} download={b.name} style={css("height:34px;padding:0 12px;border-radius:8px;border:1px solid var(--mline2);background:var(--mbtn);color:var(--mtext);font-size:12px;font-weight:700;display:inline-flex;align-items:center;text-decoration:none")}>{T.yedekIndir}</a>
+              <button onClick={b.onVerify} disabled={b.verifying} style={css("height:34px;padding:0 12px;border-radius:8px;border:1px solid var(--mline2);background:var(--mbtn);color:var(--mtext);font-size:12px;font-weight:700;cursor:pointer" + (b.verifying ? ";opacity:.6" : ""))}>{b.verifyLabel}</button>
+              <button onClick={b.onDelete} style={css("height:34px;padding:0 12px;border-radius:8px;border:1px solid var(--merrline);background:var(--merr);color:var(--merrtext);font-size:12px;font-weight:700;cursor:pointer")}>{b.delLabel}</button>
+              </div>
+            </div>
+            {b.foreign ? <Note tone="warn">{b.foreignText}</Note> : null}
+            {b.hasCheck ? <Note tone={b.checkTone}>{b.checkText}</Note> : null}
           </div>
         ))}
         {v.noBackups ? <div style={css("font-size:13px;color:var(--mmuted)")}>{T.yedekYok}</div> : null}
+
+        <div style={css("display:flex;flex-direction:column;gap:9px;border-top:1px solid var(--mline);padding-top:12px")}>
+          <div style={css("font-size:13px;font-weight:800;color:var(--mink)")}>{T.anahtarDosyasi}</div>
+          <div style={css("font-size:12px;color:var(--mmuted);line-height:1.55")}>{T.anahtarDosyasiNot}</div>
+          <Row>
+            <Field label={T.masterSifre} name="bkPass" type="password" onChange={v.onField} />
+            <Btn onClick={v.downloadKey}>{T.anahtariIndir}</Btn>
+          </Row>
+        </div>
       </Card>
 
       <Card title={T.fabrikaAyarlarinaDon} note={T.fabrikaNot}>

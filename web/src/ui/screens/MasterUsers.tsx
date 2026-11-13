@@ -17,6 +17,7 @@ export function MasterUsers({ v }: { v: Vals }) {
                     <div style={css("font-size:14px;font-weight:800;color:var(--mink)")}>{u.name}</div>
                     <div style={css("font-size:12px;color:var(--mmuted);font-weight:600")}>{u.email}</div>
                   </div>
+                  {u.hasLockLabel ? <span style={css(u.lockStyle)}>{u.lockLabel}</span> : null}
                   <span style={css(u.statusStyle)}>{u.statusLabel}</span>
                 </div>
                 <div style={st.rowWrap8}>
@@ -29,6 +30,18 @@ export function MasterUsers({ v }: { v: Vals }) {
                     <button onClick={u.onApprove} style={css("height:36px;padding:0 12px;border:none;background:var(--pri,#2a3180);color:#fff;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer")}>{v.T.onayla}</button>
                   </>) : null}
                   <button onClick={u.onSendLink} style={css("height:36px;padding:0 11px;border:1px solid var(--mline2);background:var(--mbtn);color:var(--mtext);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer")}>{v.T.baglantiGonderKisa}</button>
+                  {u.isLocked ? (
+                    <button onClick={u.onUnlock} style={css("height:36px;padding:0 11px;border:none;background:var(--pri,#2a3180);color:#fff;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer")}>{v.T.kilidiKaldir}</button>
+                  ) : (
+                    <select onChange={u.onLock} defaultValue="" aria-label={v.T.kilitle} style={css("height:36px;border:1px solid var(--mline2);background:var(--mbtn);color:var(--mtext);border-radius:8px;padding:0 8px;font-size:12px;font-weight:700;cursor:pointer")}>
+                      <option value="">{v.T.kilitle}…</option>
+                      <option value="60">{v.T.kilit1Saat}</option>
+                      <option value="1440">{v.T.kilit1Gun}</option>
+                      <option value="10080">{v.T.kilit7Gun}</option>
+                      <option value="43200">{v.T.kilit30Gun}</option>
+                      <option value="forever">{v.T.kilitSuresiz}</option>
+                    </select>
+                  )}
                   <button onClick={u.onDelete} style={css("height:36px;padding:0 11px;border:1px solid var(--merrline);background:var(--merr);color:var(--merrtext);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer")}>{u.delLabel}</button>
                 </div>
               </div>

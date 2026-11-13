@@ -39,6 +39,13 @@ function mapCommon(data: any) {
   };
 }
 
+/** Proje: meslek bazlı atamalardan tekil müellif listesi (authorIds) türetilir. */
+const mapProject = (p: any) => ({
+  ...p, docs: mapDocs(p.docs), files: p.files.map(mapFile),
+  assignments: p.assignments || [],
+  authorIds: Array.from(new Set((p.assignments || []).map((a: any) => a.authorId))),
+});
+
 export function mapBootstrap(data: any) {
   return {
     ...mapCommon(data),
@@ -50,7 +57,7 @@ export function mapBootstrap(data: any) {
     users: data.users,
     professions: data.professions.map((p: any) => p.name),
     profRequired: Object.fromEntries(data.professions.map((p: any) => [p.name, p.required])),
-    projects: data.projects.map((p: any) => ({ ...p, docs: mapDocs(p.docs), files: p.files.map(mapFile) })),
+    projects: data.projects.map(mapProject),
     authors: data.authors,
     contractors: data.contractors,
     tasks: data.tasks,
@@ -70,7 +77,7 @@ export function mapMaster(data: any) {
   return {
     ...mapCommon(data),
     users: data.users,
-    projects: data.projects.map((p: any) => ({ ...p, docs: mapDocs(p.docs), files: p.files.map(mapFile) })),
+    projects: data.projects.map(mapProject),
     domainConflicts: data.domainConflicts,
     system: {
       version: data.version,
@@ -106,7 +113,7 @@ export function toInput(entity: string, payload: any) {
       proxy: pick(payload.proxy || {}, ["name", "tc", "phone", "address"]),
     };
   }
-  if (entity === "author") return pick(payload, ["tc", "first", "last", "phone", "company", "job", "sicil", "address"]);
+  if (entity === "author") return pick(payload, ["tc", "first", "last", "phone", "company", "jobs", "sicil", "address"]);
   return pick(payload, ["title", "owner", "licence", "rank", "address"]);
 }
 

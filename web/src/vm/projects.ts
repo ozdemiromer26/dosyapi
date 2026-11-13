@@ -26,7 +26,7 @@ export function buildProjects(c: Ctx): () => Vals {
       locationLabel: [p.mahalle, p.street].filter(Boolean).join(" · ") || tx("Adres girilmedi"),
       locked: lockedProjectIds.has(p.id),
       canWrite: canWriteProjects,
-      authorChips: (p.authorIds || []).map(id => { const a = s.authors.find(x => x.id === id); return a ? { id, label: a.first + " " + a.last, job: a.job } : null; }).filter(Boolean),
+      authorChips: (p.assignments || []).map(x => { const a = s.authors.find(y => y.id === x.authorId); return a ? { id: a.id + ":" + x.job, label: a.first + " " + a.last, job: x.job } : null; }).filter(Boolean),
       noAuthors: !(p.authorIds || []).some(id => s.authors.some(x => x.id === id)),
       authorMiss: app.authorMiss(p).length ? tx("Eksik müellif: ") + app.authorMiss(p).join(", ") : "", hasAuthorMiss: app.authorMiss(p).length > 0,
       missingList: missingDocs(p).map(d => ({ id: d.id, name: d.name })),

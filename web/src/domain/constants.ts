@@ -36,3 +36,6 @@ export const COLORS = ["#111111", "#2a3180", "#1d72b8", "#a8341a", "#1b6b3a", "#
 export function localToday(d = new Date()) {
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
+
+/** Açılır listelerin sonundaki "+ … ekle" seçeneğinin değeri (kayıt kimliğiyle çakışmaz). */
+export const ADD_OPTION = "__add__";
