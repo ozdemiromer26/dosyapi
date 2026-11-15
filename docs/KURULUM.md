@@ -183,7 +183,10 @@ sudo dosyapi-ctl restore yedek.dsyb --key secret.key
 ```
 
 Geri yükleme önce yedeğin tamamını doğrular, veritabanı bütünlüğünü ve her kayıtlı dosyanın yedekte olduğunu denetler; ancak
-sonra mevcut veriyle yer değiştirir. Mevcut veri silinmez, `onceki-<zaman>` klasörüne taşınır. systemd kurulumunda önce
+sonra mevcut veriyle yer değiştirir. Mevcut veri silinmez, `onceki-<zaman>` klasörüne taşınır.
+
+Yedek, alındığı dosyapı sürümünü taşır. Daha yeni bir sürümle alınmış yedek eski sürüme geri yüklenmez; önce sunucuyu
+en az o sürüme güncelleyin. Aynı ya da eski sürümün yedeği her zaman geri yüklenir. systemd kurulumunda önce
 servisi durdurun (`sudo systemctl stop dosyapi`), komutu `dosyapi` kullanıcısıyla çalıştırın, sonra başlatın.
 
 ## Sistem Paneli: şifre, kilit, kapatma

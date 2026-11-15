@@ -52,6 +52,8 @@ const MANIFEST_MAX: usize = 1 << 20;
 const DB_ENTRY: &str = "dosyapi.sqlite";
 const OBJECTS: &str = "files/objects/";
 pub const EXTENSION: &str = ".dsyb";
+/// Bu ikilinin sürümü; yedeğe yazılır ve geri yüklemede karşılaştırılır.
+const RUNNING: &str = env!("CARGO_PKG_VERSION");
 /// Yedeği kimin aldığı: zamanlanmış görev, Sistem Paneli, sunucu konsolu ya da bir işlem öncesi.
 pub const LABELS: [&str; 5] = [
     "otomatik",
@@ -498,7 +500,7 @@ fn write_archive(job: &WriteJob) -> AppResult<()> {
 
     let manifest = Manifest {
         format: FORMAT,
-        version: env!("CARGO_PKG_VERSION").into(),
+        version: RUNNING.into(),
         created_at: job.created_at,
         label: job.label.clone(),
         db_bytes,
@@ -661,16 +663,34 @@ async fn check_db(db: &Path, ids: &HashSet<String>) -> AppResult<(bool, u64)> {
     Ok((integrity == "ok", missing))
 }
 
-fn report_from(scan: &Scan, integrity: bool, missing: u64) -> BackupReport {
+/// Bu sürüm yedeği açabilir mi? Daha yeni bir sürümün yedeği reddedilir: şeması bu sürümce
+/// bilinmez ve açılırsa veri bozulabilir. Eski ya da aynı sürümün yedeği kabul edilir; şema
+/// açılışta güncellenir.
+fn compatibility(backup: &str, running: &str) -> Result<(), String> {
+    let unreadable = || "Yedeğin sürüm bilgisi okunamadı.".to_string();
+    let backup = semver::Version::parse(backup).map_err(|_| unreadable())?;
+    let running = semver::Version::parse(running).map_err(|_| unreadable())?;
+    if backup > running {
+        return Err(format!(
+            "Bu yedek daha yeni bir dosyapı sürümüyle ({backup}) alınmış; bu sunucu {running}. Geri yüklemek için önce sunucuyu en az {backup} sürümüne güncelleyin."
+        ));
+    }
+    Ok(())
+}
+
+fn report_from(scan: &Scan, integrity: bool, missing: u64, running: &str) -> BackupReport {
+    let compatible = compatibility(&scan.manifest.version, running);
     let message = if !integrity {
         "Yedekteki veritabanı bütünlük denetiminden geçmedi.".to_string()
     } else if missing > 0 {
         format!("Yedekte {missing} dosya eksik.")
+    } else if let Err(reason) = &compatible {
+        reason.clone()
     } else {
         "Yedek sağlam: her bayt doğrulandı.".to_string()
     };
     BackupReport {
-        ok: integrity && missing == 0,
+        ok: integrity && missing == 0 && compatible.is_ok(),
         message,
         created_at: scan.manifest.created_at,
         version: scan.manifest.version.clone(),
@@ -701,6 +721,15 @@ pub async fn verify_file(
     keys: &BackupKeys,
     scratch: &Path,
 ) -> AppResult<BackupReport> {
+    verify_as(path, keys, scratch, RUNNING).await
+}
+
+async fn verify_as(
+    path: &Path,
+    keys: &BackupKeys,
+    scratch: &Path,
+    running: &str,
+) -> AppResult<BackupReport> {
     fs::create_dir_all(scratch)
         .await
         .map_err(AppError::internal)?;
@@ -714,7 +743,7 @@ pub async fn verify_file(
         .map_err(AppError::internal)?;
     let result = match scanned {
         Ok(scan) => match check_db(&db, &scan.ids).await {
-            Ok((integrity, missing)) => Ok(report_from(&scan, integrity, missing)),
+            Ok((integrity, missing)) => Ok(report_from(&scan, integrity, missing, running)),
             Err(AppError::Validation(message)) => Ok(failed(message)),
             Err(error) => Err(error),
         },
@@ -739,6 +768,16 @@ pub async fn restore_file(
     keys: &BackupKeys,
     database: &Path,
     files_root: &Path,
+) -> AppResult<Restored> {
+    restore_as(path, keys, database, files_root, RUNNING).await
+}
+
+async fn restore_as(
+    path: &Path,
+    keys: &BackupKeys,
+    database: &Path,
+    files_root: &Path,
+    running: &str,
 ) -> AppResult<Restored> {
     let data_dir = database
         .parent()
@@ -765,7 +804,7 @@ pub async fn restore_file(
                 .await
                 .map_err(AppError::internal)??;
         let (integrity, missing) = check_db(&staged_db, &scan.ids).await?;
-        let report = report_from(&scan, integrity, missing);
+        let report = report_from(&scan, integrity, missing, running);
         if !report.ok {
             return Err(AppError::validation(report.message));
         }
@@ -1241,6 +1280,61 @@ mod tests {
             .is_err()
         );
         assert!(lab.root.join("files/objects/ab/abc-1").exists());
+    }
+
+    #[tokio::test]
+    async fn newer_version_backups_are_refused() {
+        let lab = lab("version").await;
+        let info = lab.backups.create("elle").await.unwrap();
+        let path = lab.root.join("backups").join(&info.name);
+
+        // Aynı ve daha yeni sunucu kabul eder.
+        assert!(
+            verify_as(&path, &lab.keys, &lab.root, RUNNING)
+                .await
+                .unwrap()
+                .ok
+        );
+        assert!(
+            verify_as(&path, &lab.keys, &lab.root, "99.0.0")
+                .await
+                .unwrap()
+                .ok
+        );
+
+        // Daha eski sunucu reddeder; geri yükleme mevcut veriye dokunmaz.
+        let report = verify_as(&path, &lab.keys, &lab.root, "0.0.1")
+            .await
+            .unwrap();
+        assert!(!report.ok);
+        assert!(report.message.contains("daha yeni"), "{}", report.message);
+        let refused = restore_as(
+            &path,
+            &lab.keys,
+            &lab.root.join(DB_ENTRY),
+            &lab.root.join("files"),
+            "0.0.1",
+        )
+        .await;
+        assert!(refused.is_err());
+        assert!(lab.root.join("files/objects/ab/abc-1").exists());
+        let moved = std::fs::read_dir(&lab.root).unwrap().any(|e| {
+            e.unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with("onceki-")
+        });
+        assert!(!moved);
+    }
+
+    #[test]
+    fn version_rules() {
+        assert!(compatibility("0.1.0", "0.1.0").is_ok());
+        assert!(compatibility("0.1.0", "0.2.0").is_ok());
+        assert!(compatibility("0.2.0", "0.1.9").is_err());
+        assert!(compatibility("0.2.0-beta.1", "0.2.0").is_ok());
+        assert!(compatibility("0.2.0", "0.2.0-beta.1").is_err());
+        assert!(compatibility("bozuk", "0.1.0").is_err());
     }
 
     #[tokio::test]

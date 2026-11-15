@@ -644,6 +644,7 @@ export const EN: Record<string, string> = {
 "Yedek arka planda alınıyor; bitince listede görünür.":"The backup is running in the background; it will appear in the list when done.",
 "Master şifreyi girin.":"Enter the master password.",
 "Yedek sağlam: her bayt doğrulandı.":"Backup intact: every byte verified.",
+"Yedeğin sürüm bilgisi okunamadı.":"The backup's version information could not be read.",
 "Yedekteki veritabanı bütünlük denetiminden geçmedi.":"The database in the backup failed the integrity check.",
 "Yedek bozuk ya da değiştirilmiş: bütünlük doğrulaması başarısız.":"The backup is damaged or has been modified: integrity check failed.",
 "Yedek eksik: dosya kesilmiş.":"The backup is incomplete: the file was truncated.",
