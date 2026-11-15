@@ -59,7 +59,11 @@ enum Command {
     /// Sunucuyu başlatır
     Serve,
     /// Tam yedek alır (veritabanı + dosyalar, şifreli) ve hemen doğrular
-    Backup,
+    Backup {
+        /// Güncelleme öncesi yedeği: bu türün yalnızca son 5 tanesi tutulur
+        #[arg(long)]
+        before_update: bool,
+    },
     /// Yedek dosyasının bütünlüğünü uçtan uca doğrular
     Verify {
         file: PathBuf,
@@ -344,7 +348,9 @@ async fn main() -> Result<()> {
             init_tracing();
             serve(Config::load(&cli.config)?).await
         }
-        Command::Backup => console::backup(&Config::load(&cli.config)?).await,
+        Command::Backup { before_update } => {
+            console::backup(&Config::load(&cli.config)?, before_update).await
+        }
         Command::Verify { file, secret_key } => {
             console::verify(&Config::load(&cli.config)?, &file, secret_key.as_deref()).await
         }

@@ -94,7 +94,6 @@ export function buildMaster(c: Ctx): () => Vals {
           { k: tx("Kendiliğinden açılır"), v: hm(g.until) + " (" + Math.max(1, Math.ceil((g.until * 1000 - Date.now()) / 60000)) + tx(" dk sonra") + ")" },
           { k: tx("Hatalı deneme"), v: g.failures + (g.lastAt ? tx(" · son ") + hm(g.lastAt) : "") },
         ];
-      if (blocked && g.lastIp) rows.push({ k: tx("Son deneme IP"), v: g.lastIp });
       return {
         masterLocked: !s.masterAuthed && !blocked,
         gateBlocked: blocked, gateDisabled: disabled,

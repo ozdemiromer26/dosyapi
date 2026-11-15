@@ -34,7 +34,7 @@ app_any() {
   if running && [ ${#opts[@]} -eq 0 ]; then
     dc exec -T dosyapi dosyapi --config /data/config.toml "$@"
   else
-    dc run --rm --no-deps -T "${opts[@]}" --entrypoint dosyapi dosyapi --config /data/config.toml "$@"
+    dc run --rm --no-deps -T ${opts[@]+"${opts[@]}"} --entrypoint dosyapi dosyapi --config /data/config.toml "$@"
   fi 2>&1 | sed "s#/data/#$DIR/data/#g"
 }
 # Etkileşimli (terminalden yanıt bekleyen) komutlar için.
@@ -249,13 +249,13 @@ cmd_update() {
     [ -n "$target" ] && ref="v$target"
     new_ref="$(cmd_build "$ref")" || die "Derleme başarısız; çalışan sürüm değişmedi."
     info "Güncelleme öncesi yedek alınıyor…"
-    cmd_backup
+    app_any -- backup --before-update || die "Yedek alınamadı; güncelleme yapılmadı."
     env_set DOSYAPI_IMAGE_REF "$new_ref"
   else
     new_ref="$image:${target:-latest}"
     previous="$(current_digest)"
     info "Güncelleme öncesi yedek alınıyor…"
-    cmd_backup
+    app_any -- backup --before-update || die "Yedek alınamadı; güncelleme yapılmadı."
     info "İmaj indiriliyor: $new_ref"
     env_set DOSYAPI_IMAGE_REF "$new_ref"
     if ! dc pull dosyapi; then

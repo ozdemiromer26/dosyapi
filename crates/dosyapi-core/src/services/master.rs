@@ -18,19 +18,21 @@ pub const MASTER_IDLE: i64 = 30 * 60;
 /// Bu kadar ardışık hatalı denemeden sonra panel geçici olarak kilitlenir.
 pub const LOCK_AFTER: i64 = 5;
 
-/// Master girişinde kilit süresi başarısızlıkla üstel artar; 1 saatle sınırlıdır.
+/// Master girişinde kilit süresi kademeli artar: 5. hatada 5 dk; kilit bitince her yeni
+/// hata bir üst kademe (15, 30 dk), sonrasında her hata 60 dk.
 fn lockout_seconds(failures: i64) -> i64 {
-    const LOCK_BASE_SECS: i64 = 60;
-    const LOCK_MAX_SECS: i64 = 3600;
-    if failures < LOCK_AFTER {
-        return 0;
+    match failures - LOCK_AFTER {
+        n if n < 0 => 0,
+        0 => 5 * 60,
+        1 => 15 * 60,
+        2 => 30 * 60,
+        _ => 60 * 60,
     }
-    let exponent = (failures - LOCK_AFTER).min(10) as u32;
-    (LOCK_BASE_SECS.saturating_mul(1 << exponent)).min(LOCK_MAX_SECS)
 }
 
 /// Giriş ekranının durumu: açık, hatalı denemeler yüzünden geçici kilitli ya da konsoldan
-/// devre dışı bırakılmış. Kilit ekranı bu bilgilerle çizilir.
+/// devre dışı bırakılmış. Kilit ekranı bu bilgilerle çizilir; herkese açık olduğu için IP
+/// adresi gibi kişisel veri içermez.
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "state", rename_all = "camelCase")]
 pub enum MasterGate {
@@ -41,14 +43,9 @@ pub enum MasterGate {
         until: i64,
         failures: i64,
         last_at: i64,
-        last_ip: String,
     },
     #[serde(rename_all = "camelCase")]
-    Disabled {
-        since: i64,
-        last_at: i64,
-        last_ip: String,
-    },
+    Disabled { since: i64, last_at: i64 },
 }
 
 #[derive(Debug)]
@@ -96,7 +93,6 @@ impl MasterService {
             return Ok(MasterGate::Disabled {
                 since: disabled.at,
                 last_at: lock.last_at,
-                last_ip: lock.last_ip,
             });
         }
         if lock.locked_until > self.clock.now() {
@@ -104,7 +100,6 @@ impl MasterService {
                 until: lock.locked_until,
                 failures: lock.failures,
                 last_at: lock.last_at,
-                last_ip: lock.last_ip,
             });
         }
         Ok(MasterGate::Open {
@@ -126,7 +121,6 @@ impl MasterService {
         let now = self.clock.now();
         let mut lock = self.lock_state().await?;
         lock.last_at = now;
-        lock.last_ip = meta.ip.chars().take(64).collect();
         // Kapalı ya da kilitliyken şifre denenmez; yalnızca son deneme kaydedilir.
         if self.disabled().await?.is_some() {
             self.settings.set_json(KEY_MASTER_LOCK, &lock).await?;
@@ -342,5 +336,16 @@ impl MasterService {
         self.audit
             .master(meta, "master.totp_disabled", "", "")
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lockout_steps() {
+        let steps: Vec<i64> = (1..=10).map(lockout_seconds).collect();
+        assert_eq!(steps, [0, 0, 0, 0, 300, 900, 1800, 3600, 3600, 3600]);
     }
 }

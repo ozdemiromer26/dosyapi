@@ -7,7 +7,7 @@
 use crate::config::Config;
 use anyhow::{Result, anyhow, bail};
 use dosyapi_core::model::RequestMeta;
-use dosyapi_core::ports::{BackupReport, BackupService, Clock, DataEraser};
+use dosyapi_core::ports::{BackupReport, BackupService, Clock, DataEraser, KEEP_PRE_UPDATE};
 use dosyapi_core::services::audit::Auditor;
 use dosyapi_core::services::dns::DnsConfig;
 use dosyapi_core::services::master::MasterService;
@@ -150,7 +150,14 @@ fn print_report(report: &BackupReport) {
         println!(
             "  Alındı: {} · sürüm {}",
             time::OffsetDateTime::from_unix_timestamp(report.created_at)
-                .map(|t| t.to_string())
+                .map(|t| format!(
+                    "{:04}-{:02}-{:02} {:02}:{:02} UTC",
+                    t.year(),
+                    t.month() as u8,
+                    t.day(),
+                    t.hour(),
+                    t.minute()
+                ))
                 .unwrap_or_default(),
             report.version
         );
@@ -168,17 +175,32 @@ fn print_report(report: &BackupReport) {
     );
 }
 
-pub async fn backup(config: &Config) -> Result<()> {
+/// Tam yedek alır ve doğrular. Güncelleme öncesi yedeklerin yalnızca son birkaçı tutulur;
+/// elle alınanlar siz silene kadar kalır.
+pub async fn backup(config: &Config, before_update: bool) -> Result<()> {
     let console = open(config).await?;
     let service = console.backups(config);
+    let label = if before_update {
+        "guncelleme-oncesi"
+    } else {
+        "konsol"
+    };
     println!("Tam yedek alınıyor (veritabanı ve dosyalar)…");
-    let info = service.create("konsol").await.map_err(err)?;
+    let info = service.create(label).await.map_err(err)?;
     let path = config.backups().join(&info.name);
     console
         .audit
-        .master(&meta(), "backup.create", &info.name, "konsol")
+        .master(&meta(), "backup.create", &info.name, label)
         .await
         .map_err(err)?;
+    if before_update {
+        let removed = service.prune(label, KEEP_PRE_UPDATE).await.map_err(err)?;
+        if removed > 0 {
+            println!(
+                "Eski güncelleme öncesi yedeklerden {removed} tanesi silindi (son {KEEP_PRE_UPDATE} tutulur)."
+            );
+        }
+    }
     println!("Doğrulanıyor…");
     let report = service.verify(&info.name).await.map_err(err)?;
     print_report(&report);

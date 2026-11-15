@@ -191,8 +191,9 @@ servisi durdurun (`sudo systemctl stop dosyapi`), komutu `dosyapi` kullanıcıs�
 
 ## Sistem Paneli: şifre, kilit, kapatma
 
-5 hatalı master şifre denemesinde panel geçici olarak kilitlenir (1 dakikadan başlar, en çok 1 saat). Kilit ekranında açılma
-zamanı, deneme sayısı ve son denemenin IP adresi görünür. Hemen açmak ya da paneli tamamen kapatıp açmak için:
+5. hatalı master şifre denemesinde panel 5 dakika kilitlenir; kilit bitince her yeni hata bir üst kademe kilitler: 15 dk,
+30 dk, sonra her hatada 60 dk. Kilit ekranında açılma zamanı ve deneme sayısı görünür; denemelerin IP adresleri denetim
+günlüğündedir. Hemen açmak ya da paneli tamamen kapatıp açmak için:
 
 ```bash
 sudo dosyapi-ctl master-enable     # kilidi ve sayacı sıfırlar, kapalıysa açar

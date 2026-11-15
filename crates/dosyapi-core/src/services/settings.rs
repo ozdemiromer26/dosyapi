@@ -29,14 +29,14 @@ pub const KEY_MASTER_DISABLED: &str = "master.disabled";
 pub const KEY_BACKUP_SCHEDULE: &str = "backup.schedule";
 
 /// Yanlış master şifre sayacı; yeniden başlatmada sıfırlanmasın diye veritabanında.
-/// Son denemenin zamanı ve adresi kilit ekranında gösterilir.
+/// Son denemenin zamanı kilit ekranında gösterilir. Adres yalnızca denetim günlüğünde durur:
+/// kilit ekranı oturum istemediği için herkese açıktır.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct LockState {
     pub failures: i64,
     pub locked_until: i64,
     pub last_at: i64,
-    pub last_ip: String,
 }
 
 /// Sistem paneli sunucu konsolundan (`master-disable`) kapatıldı; yalnızca `master-enable` açar.

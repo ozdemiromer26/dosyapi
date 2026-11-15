@@ -626,6 +626,11 @@ async fn update_apply(
         )
         .into());
     }
+    state
+        .services
+        .backups
+        .prune("guncelleme-oncesi", dosyapi_core::ports::KEEP_PRE_UPDATE)
+        .await?;
     let version = state.services.updates.apply(&meta).await?;
     Ok(Json(json!({ "version": version })))
 }

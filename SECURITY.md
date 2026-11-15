@@ -17,7 +17,7 @@ Güvenlik açıklarını herkese açık kanaldan yazmayın; depo sahibine özel 
 | IDOR | Kimlikler UUID; görev ve notlarda sahiplik denetimi, başkasının kaydı için 404. |
 | Toplu atama | Girdi türleri `deny_unknown_fields`: şema dışı alan isteği reddeder. |
 | Parola sızıntısı | Argon2id (64 MiB, 3 tur), en az 12 karakter ve zxcvbn denetimi. Belirteçler veritabanında yalnızca anahtarlı özet olarak durur. |
-| Kaba kuvvet | IP bazlı sınır ve kademeli hesap kilidi: art arda 3 hatalı şifrede 5 dk, 6'da 15 dk, 9'da 60 dk, 12'de süresiz kilit; kilitliyken denemeler sayılmaz, doğru şifre de girmez. Süresiz kilidi yalnızca Sistem Paneli açar (şifre sıfırlama açmaz). Sistem Paneli kullanıcıya süreli ya da süresiz yasak da verebilir; yasak açık oturumları hemen kapatır. Master girişi 5 hatalı denemede geçici kilitlenir (1 dakikadan başlayıp 1 saate kadar artar); kilitliyken doğru şifre de girmez. Kilit ekranı yalnızca açılma zamanını, deneme sayısını ve son denemenin IP adresini gösterir. Kilit sunucu konsolundan `dosyapi-ctl master-enable` ile hemen kaldırılır; panel `master-disable` ile tamamen kapatılabilir, kapalıyken açık panel oturumları da düşer. `X-Forwarded-For` yalnızca açıkça güvenilen vekilden okunur. |
+| Kaba kuvvet | IP bazlı sınır ve kademeli hesap kilidi: art arda 3 hatalı şifrede 5 dk, 6'da 15 dk, 9'da 60 dk, 12'de süresiz kilit; kilitliyken denemeler sayılmaz, doğru şifre de girmez. Süresiz kilidi yalnızca Sistem Paneli açar (şifre sıfırlama açmaz). Sistem Paneli kullanıcıya süreli ya da süresiz yasak da verebilir; yasak açık oturumları hemen kapatır. Master girişi 5. hatalı denemede 5 dk kilitlenir; kilit bitince her yeni hata bir üst kademe kilitler (15 dk, 30 dk, sonra her hatada 60 dk); kilitliyken doğru şifre de girmez. Kilit ekranı oturum istemediği için yalnızca açılma zamanını ve deneme sayısını gösterir, IP adresi göstermez (adres denetim günlüğündedir). Kilit sunucu konsolundan `dosyapi-ctl master-enable` ile hemen kaldırılır; panel `master-disable` ile tamamen kapatılabilir, kapalıyken açık panel oturumları da düşer. `X-Forwarded-For` yalnızca açıkça güvenilen vekilden okunur. |
 | Kullanıcı numaralandırma | Giriş, kayıt ve şifre sıfırlama hesap varlığını ele vermez; olmayan hesapta da parola özeti hesaplanır. |
 | Veri sızıntısı | TC, telefon, adres ve bekleyen talepler AES-256-GCM ile alan düzeyinde şifreli; dosyalar diskte şifreli ve rastgele adlı. Bağlam (AAD) sayesinde şifreli değer başka satıra taşınamaz. Salt okuma rolleri kişisel veriyi maskeli alır. |
 | Zararlı dosya | Uzantı izin listesi ve içerik imzası denetimi; indirme her zaman ek olarak ve ikili türle sunulur. SVG kabul edilmez. Proje fotoğrafı yalnızca PNG/JPEG/WEBP olabilir, türü içerikten belirlenir; tarayıcıda yeniden kodlandığı için EXIF ve konum bilgisi sunucuya gitmez. |
@@ -50,7 +50,7 @@ Güvenlik açıklarını herkese açık kanaldan yazmayın; depo sahibine özel 
 
 ```bash
 make test       # birim testleri
-make pentest    # 440 saldırı senaryosu (--timing ile 450)
+make pentest    # 441 saldırı senaryosu (--timing ile 451)
 python3 security/update_test.py --help   # güncelleme saldırıları
 make audit      # cargo audit + npm audit
 ```

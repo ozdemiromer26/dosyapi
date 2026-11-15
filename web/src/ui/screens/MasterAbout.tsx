@@ -1,6 +1,9 @@
+import type React from "react";
 import { css } from "../css";
 import type { Vals } from "../../vm/types";
 
+
+const SOURCE_URL = "https://github.com/ozdemiromer26/dosyapi";
 
 /** Hakkında kartı; Sistem paneli ("m" renkleri) ve uygulama içinde ortak. */
 export function AboutCard({ v, master }: { v: Vals; master?: boolean }) {
@@ -9,10 +12,14 @@ export function AboutCard({ v, master }: { v: Vals; master?: boolean }) {
   const KEY = "flex:0 0 150px;font-size:12px;font-weight:700;color:" + (master ? "var(--mmuted)" : "var(--muted)");
   const VAL = "flex:1;min-width:0;font-size:14px;font-weight:700;color:" + (master ? "var(--mink)" : "var(--ink)") + ";overflow-wrap:anywhere";
   const T = v.T;
-  const rows: [string, string][] = [
+  // AGPL-3.0: ağ üzerinden kullananlara kaynak koduna erişim sunulur.
+  const source = <a href={SOURCE_URL} target="_blank" rel="noopener noreferrer" style={css("color:" + (master ? "var(--mbrandink)" : "var(--brandink)") + ";text-decoration:none")}>{SOURCE_URL.replace("https://", "")}</a>;
+  const rows: [string, React.ReactNode][] = [
     [T.surumAd, v.sysVersion || "—"],
     [T.sonGuncelleme, v.aboutDate],
     [T.gelistiren, v.aboutDeveloper],
+    [T.lisans, "GNU AGPL-3.0"],
+    [T.kaynakKodu, source],
   ];
   return (
     <div style={css("width:100%;box-sizing:border-box;background:" + c("card") + ";border:1px solid " + c("line") + ";border-radius:16px;padding:22px 20px 10px;display:flex;flex-direction:column")}>

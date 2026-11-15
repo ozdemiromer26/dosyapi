@@ -471,6 +471,9 @@ pub struct BackupReport {
     pub missing: u64,
 }
 
+/// Güncelleme öncesi alınan yedeklerden saklanan sayı; eskileri kendiliğinden silinir.
+pub const KEEP_PRE_UPDATE: usize = 5;
+
 #[async_trait]
 pub trait BackupService: Send + Sync {
     async fn create(&self, label: &str) -> AppResult<BackupInfo>;
