@@ -65,7 +65,7 @@ Alan adınız yoksa denemek için IP'den türetilen bir ad kullanabilirsiniz: su
 | `sudo dosyapi-ctl backup [klasör]` | Tam yedek (veritabanı + dosyalar, şifreli) alır ve doğrular; uygulama durmaz. Klasör verilirse yedek ve `secret.key` oraya da kopyalanır |
 | `sudo dosyapi-ctl verify <yedek> [--key secret.key]` | Yedeğin bütünlüğünü uçtan uca doğrular (başka sunucunun yedeği için `--key`) |
 | `sudo dosyapi-ctl restore <yedek> [--key secret.key]` | Yedeği doğrular, uygulamayı durdurup geri yükler; mevcut veri `data/app/onceki-*` klasörüne taşınır |
-| `sudo dosyapi-ctl update [version]` | Önce yedek alır, yeni sürüme geçer; sağlıklı açılmazsa önceki sürüme döner |
+| `sudo dosyapi-ctl update [version]` | Önce yedek alır, yeni sürüme geçer; sağlıklı açılmazsa önceki sürüme döner. En son sürüme geçince `dosyapi-ctl` de o sürümün kopyasıyla yenilenir |
 | `sudo dosyapi-ctl build [ref]` | Kaynak koddan imaj derler (`main` ya da `v1.2.3`) |
 | `sudo dosyapi-ctl auto-update on\|off` | Gece güncellemesi (04:00 civarı) |
 | `sudo dosyapi-ctl token` | Yeni kurulum belirteci (ilk kurulum bitmediyse) |
@@ -74,6 +74,15 @@ Alan adınız yoksa denemek için IP'den türetilen bir ad kullanabilirsiniz: su
 | `sudo dosyapi-ctl master-enable` | Sistem Paneli'ni açar; hatalı denemelerden gelen geçici kilidi ve sayacı sıfırlar (şifre değişmez) |
 | `sudo dosyapi-ctl factory-reset` | Tüm veriyi siler. Önce tam yedek alır; onay için sunucu adresini aynen yazmanız istenir |
 | `sudo dosyapi-ctl uninstall` | Servisleri kaldırır; veriler kalır |
+
+0.1.0 ya da 0.1.1 ile kurulan sunucularda `dosyapi-ctl` sağlık denetimini yanlış Host başlığıyla yapıyordu: `status`
+uygulamayı "yanıt vermiyor" gösterir, `update` yeni sürümü başarısız sayıp geri döner. 0.1.2'ye bir kez şöyle geçin:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ozdemiromer26/dosyapi/v0.1.2/deploy/docker/dosyapi-ctl -o /tmp/dosyapi-ctl
+bash -n /tmp/dosyapi-ctl && sudo install -m 0755 /tmp/dosyapi-ctl /usr/local/bin/dosyapi-ctl
+sudo dosyapi-ctl update
+```
 
 Yedek dosyası `secret.key` olmadan açılamaz; ikisini ayrı yerlerde, sunucu dışında saklayın. Anahtarı kaybetmek veriyi
 kaybetmek, ikisinin birlikte başkasının eline geçmesi veriyi açması demektir. Ayrıntı: [Yedekleme](#yedekleme).

@@ -56,9 +56,13 @@ env_set() {
 # Uygulama konteyneri çalışıyor mu?
 running() { [ -n "$(dc ps -q --status running dosyapi 2>/dev/null || true)" ]; }
 
-# Uygulama sağlıklı mı? Caddy imajındaki wget ile iç ağdan /healthz sorulur.
+# Uygulama sağlıklı mı? Caddy imajındaki wget ile iç ağdan /healthz sorulur. Uygulama yalnızca
+# kendi alan adına yanıt verdiği için (Host başlığı koruması) istek alan adıyla gönderilir;
+# 0.1.2 öncesi sürümler kapsayıcı adını (dosyapi:8080) reddeder.
 healthy() {
-  dc exec -T caddy wget -q -T 3 -O /dev/null http://dosyapi:8080/healthz >/dev/null 2>&1
+  local host
+  host="$(env_get DOSYAPI_DOMAIN)"
+  dc exec -T caddy wget -q -T 3 -O /dev/null ${host:+--header "Host: $host"} http://dosyapi:8080/healthz >/dev/null 2>&1
 }
 
 wait_healthy() {
@@ -234,6 +238,28 @@ cmd_factory_reset() {
   info "Kurulum sihirbazı tarayıcıda açık; yukarıdaki belirteçle kurulumu tamamlayın."
 }
 
+# Güncellemeden sonra bu betik, kurulan sürümün etiketindeki kopyasıyla yenilenir; böylece
+# yönetim aracındaki düzeltmeler de sunucuya ulaşır. İndirme ya da sözdizimi denetimi başarısız
+# olursa mevcut betik olduğu gibi kalır. Yeni dosya ayrı bir dosyadan taşınır (mv): çalışan
+# betik eski dosyayı okumayı sürdürür.
+refresh_self() {
+  local self repo version tmp
+  self="$(command -v dosyapi-ctl || true)"
+  [ -n "$self" ] && [ -w "$self" ] || return 0
+  repo="$(env_get DOSYAPI_REPO)"; repo="${repo:-ozdemiromer26/dosyapi}"
+  version="$(app --version 2>/dev/null | awk '{print $NF}' || true)"
+  [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || return 0
+  tmp="$(mktemp "$self.XXXXXX")"
+  if curl -fsL --max-time 30 "https://raw.githubusercontent.com/$repo/v$version/deploy/docker/dosyapi-ctl" -o "$tmp" \
+    && bash -n "$tmp" && head -n1 "$tmp" | grep -q '^#!/usr/bin/env bash'; then
+    chmod 0755 "$tmp"
+    if cmp -s "$tmp" "$self"; then rm -f "$tmp"; else mv "$tmp" "$self" && info "Yönetim aracı v$version sürümüne güncellendi."; fi
+  else
+    rm -f "$tmp"
+    echo "Uyarı: yönetim aracı güncellenemedi; mevcut sürüm kullanılmaya devam ediyor." >&2
+  fi
+}
+
 # Güncelleme: önce yedek, sonra yeni imaj. Sağlıklı açılmazsa önceki imaja dönülür.
 cmd_update() {
   local target="${1:-}" image previous new_ref ref
@@ -267,6 +293,8 @@ cmd_update() {
   if wait_healthy 90; then
     info "Güncellendi: $new_ref"
     docker image prune -f >/dev/null 2>&1 || true
+    # Belirli (eski) bir sürüme geçişte araç eski kopyasına indirilmez.
+    [ -n "$target" ] || refresh_self
     return 0
   fi
   echo "Yeni sürüm sağlıklı açılmadı; önceki sürüme dönülüyor." >&2

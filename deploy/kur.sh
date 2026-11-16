@@ -189,7 +189,7 @@ dc up -d
 
 ok=0
 for _ in $(seq 1 90); do
-  if dc exec -T caddy wget -q -T 3 -O /dev/null http://dosyapi:8080/healthz >/dev/null 2>&1; then ok=1; break; fi
+  if dc exec -T caddy wget -q -T 3 -O /dev/null --header "Host: $DOMAIN" http://dosyapi:8080/healthz >/dev/null 2>&1; then ok=1; break; fi
   sleep 1
 done
 [ "$ok" = 1 ] || die "Uygulama açılmadı. Günlükler: sudo dosyapi-ctl logs"

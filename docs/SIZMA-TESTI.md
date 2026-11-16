@@ -1,14 +1,14 @@
 # Sızma testi raporu
 
-Tarih: 2026-11-16. Hedef: yerel test örneği (`127.0.0.1`), sürüm 0.1.1. Testleri yazılımı geliştiren taraf yaptı; bu rapor
+Tarih: 2026-11-16. Hedef: yerel test örneği (`127.0.0.1`), sürüm 0.1.2. Testleri yazılımı geliştiren taraf yaptı; bu rapor
 bağımsız denetimin yerini tutmaz.
 
 ## Sonuçlar
 
 | Sınama | Araç | Sonuç |
 | --- | --- | --- |
-| Saldırı senaryoları | `security/pentest.py` | 482/482 geçti (hata ayıklama derlemesi) |
-| Sürüm derlemesi, gerçek Argon2id | `pentest.py --timing` | 492/492 geçti |
+| Saldırı senaryoları | `security/pentest.py` | 486/486 geçti (hata ayıklama derlemesi) |
+| Sürüm derlemesi, gerçek Argon2id | `pentest.py --timing` | 496/496 geçti |
 | Sürüm yükseltme (v0.1.0 → 0.1.1) | `security/goc_testi.py` | 15/15 geçti: göç, şifreli veri, eski onay talebi, eski yedeğin geri yüklenmesi |
 | Kullanıcı numaralandırma süresi | `pentest.py --timing` | Olmayan hesap 72 ms, var olan hesap 72 ms |
 | Güncelleme saldırıları | `security/update_test.py` | 18/18 geçti |
@@ -41,7 +41,7 @@ diye `.cargo/audit.toml` içinde geçici istisnadır; sqlx izin verdiğinde yük
 | Alan | Senaryolar |
 | --- | --- |
 | Kurulum | Belirteçsiz kurulum, zayıf şifre, ikinci kez kurulum ile ele geçirme |
-| Erişim | 18 uç noktada oturumsuz erişim, uydurma çerez, kullanıcı ve master oturumunun birbirine geçmesi |
+| Erişim | Host başlığı zehirlenmesi (sayfa ve API), Docker iç ağından sağlık denetimi ve muafiyetin /healthz dışına taşmaması, 18 uç noktada oturumsuz erişim, uydurma çerez, kullanıcı ve master oturumunun birbirine geçmesi |
 | Yetki | Dikey ve yatay yetki aşımı, IDOR, kendi talebini onaylama, kademe atlama, kişisel veri maskeleme |
 | Onay akışı | Bekleyen kayıtta ikinci değişiklik, onay sırasında ezme, alan dışı değişiklik, kullanılan müteahhidi silme, projeyle görev silinmesi |
 | KVKK | Aydınlatma onayı olmadan kayıt, onay zamanının saklanması, yetkisiz metin değişimi |

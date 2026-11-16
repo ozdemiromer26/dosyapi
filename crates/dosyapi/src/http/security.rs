@@ -80,7 +80,13 @@ fn is_loopback_host(host: &str) -> bool {
 }
 
 /// Host başlığı zehirlenmesine karşı: yalnızca yayımlanan alan adı ve yerel erişim kabul edilir.
+/// `/healthz` muaftır: Docker iç ağından (`http://dosyapi:8080/healthz`) yapılan sağlık denetimi
+/// kapsayıcı adını Host olarak gönderir; yanıt sabit `{"status":"ok"}` olduğu için zehirlenecek
+/// bağlantı ya da çerez yoktur.
 pub async fn host_guard(State(state): State<AppState>, request: Request, next: Next) -> Response {
+    if request.uri().path() == "/healthz" {
+        return next.run(request).await;
+    }
     let host = request
         .headers()
         .get(header::HOST)
