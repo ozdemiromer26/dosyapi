@@ -91,7 +91,7 @@ pub fn can_assign_task_to(actor: &Actor, target_role: Option<&Role>) -> bool {
 fn can_decide_entity(actor: &Actor, entity: Entity) -> bool {
     match entity {
         Entity::Project => actor.project_mode().is_direct(),
-        Entity::Author | Entity::Contractor => actor.record_mode().is_direct(),
+        Entity::Author | Entity::Contractor | Entity::Inspection => actor.record_mode().is_direct(),
         Entity::User => actor.can_users(),
     }
 }

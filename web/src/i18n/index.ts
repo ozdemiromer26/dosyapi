@@ -17,6 +17,7 @@ const PATTERNS: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^\.(\S+) güvenlik nedeniyle yüklenebilecek türler arasına eklenemez\.$/, (m) => "." + m[1] + " cannot be allowed for security reasons."],
   [/^Geçersiz uzantı: (.+)\. Yalnızca harf ve rakam kullanın \(ör\. pdf, mp4\)\.$/, (m) => "Invalid extension: " + m[1] + ". Use letters and digits only (e.g. pdf, mp4)."],
   [/^Bir belge tipine en çok (\d+) uzantı eklenebilir\.$/, (m) => "A document type can have at most " + m[1] + " extensions."],
+  [/^Bir firmaya en çok (\d+) denetçi eklenebilir\.$/, (m) => "A firm can have at most " + m[1] + " inspectors."],
   [/^Art arda hatalı şifre girildiği için hesabınız kilitlendi\. Kalan süre: (\d+) (dakika|saat)\.$/, (m) => "Your account is locked after repeated wrong passwords. Time left: " + unit(m[1], m[2]) + "."],
   [/^Hesabınız sistem yöneticisi tarafından kilitlendi\. Kalan süre: (\d+) (dakika|saat)\.$/, (m) => "Your account was locked by the system administrator. Time left: " + unit(m[1], m[2]) + "."],
 ];

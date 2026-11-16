@@ -99,7 +99,23 @@ export class AppCore extends React.Component<any, any> {
     if (prev.mode !== this.state.mode || prev.masterAuthed !== this.state.masterAuthed) this.syncLive();
     if (prev.theme !== this.state.theme) this.applyTheme();
     if (prev.lang !== this.state.lang || prev.theme !== this.state.theme) this.savePreferences();
+    if (prev.company !== this.state.company) this.applyBrand();
     this.applySlots();
+  }
+
+  /** Sekme adı "Şirket adı - dosyapı"; şirket logosu varsa sekme simgesi de odur. */
+  applyBrand() {
+    const company = this.state.company || {};
+    const name = String(company.name || "").trim();
+    document.title = name ? name + " - dosyapı" : "dosyapı";
+    let icon = document.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
+    if (!icon) { icon = document.createElement("link"); icon.rel = "icon"; document.head.appendChild(icon); }
+    // Her tazelemede değişen ?v= eki atılır; simge yalnızca logo eklenip kaldırılınca yeniden yüklenir.
+    const href = company.logoUrl ? "/api/v1/public/logo" : "/icon.svg";
+    if (icon.getAttribute("href") !== href) {
+      icon.setAttribute("href", href);
+      if (company.logoUrl) icon.removeAttribute("type"); else icon.setAttribute("type", "image/svg+xml");
+    }
   }
 
   /** Esc en üstteki katmanı kapatır: menü, form, belge penceresi, açılır listeler. */
@@ -159,7 +175,7 @@ export class AppCore extends React.Component<any, any> {
     const job = this._undo;
     if (!job) return data;
     const out = { ...data };
-    for (const list of ["projects", "authors", "contractors", "templates"]) out[list] = (out[list] || []).filter((x) => x.id !== job.id);
+    for (const list of ["projects", "authors", "contractors", "inspections", "templates"]) out[list] = (out[list] || []).filter((x) => x.id !== job.id);
     return out;
   }
 
@@ -516,7 +532,7 @@ export class AppCore extends React.Component<any, any> {
   }
 
   async commit(kind, entity, payload, title) {
-    const base = { project: "/projects", author: "/authors", contractor: "/contractors" }[entity];
+    const base = { project: "/projects", author: "/authors", contractor: "/contractors", inspection: "/inspections" }[entity];
     const result = await this.act(() =>
       kind === "create" ? this.api.post(base, toInput(entity, payload))
         : kind === "update" ? this.api.put(base + "/" + payload.id, toInput(entity, payload))
@@ -559,9 +575,9 @@ export class AppCore extends React.Component<any, any> {
   }
 
   /** Proje formundaki listelerin sonundaki "+ ekle": Kayıtlar'a gider ve yeni kayıt penceresini açar. */
-  goAddRecord(kind: "author" | "contractor", job?: string) {
+  goAddRecord(kind: "author" | "contractor" | "inspection", job?: string) {
     this.fd = {};
-    this.setState({ tab: "records", recTab: kind === "author" ? "authors" : "contractors", notifOpen: false,
+    this.setState({ tab: "records", recTab: kind === "author" ? "authors" : kind === "inspection" ? "inspections" : "contractors", notifOpen: false,
       sheet: { type: kind }, draft: kind === "author" && job ? { jobs: [job] } : {} });
   }
 
@@ -644,6 +660,7 @@ export class AppCore extends React.Component<any, any> {
         { k: tx("İnşaat adı"), v: o.name }, { k: tx("Müteahhit firma"), v: o.contractor },
         { k: tx("Mahalle"), v: o.mahalle || "—" }, { k: tx("Cadde / sokak"), v: o.street || "—" },
         { k: tx("Ada / Parsel"), v: o.ada + " / " + o.parsel },
+        { k: tx("YİBF no"), v: o.yibf || "—" }, { k: tx("Yapı denetim firması"), v: o.inspection || "—" },
         { k: tx("Proje durumu"), v: STATUS_LABEL(o.status || (o.done ? "iskan" : "uygulama")) },
         { k: tx("Müellifler"), v: names.join(", ") || "—" },
         { k: tx("Belge durumu"), v: docs },
@@ -655,7 +672,7 @@ export class AppCore extends React.Component<any, any> {
       { k: tx("Meslek"), v: (o.jobs || []).join(", ") }, { k: tx("Şirket"), v: o.company }, { k: tx("Telefon"), v: o.phone },
     ];
     return [
-      { k: tx("Firma unvanı"), v: o.title }, { k: tx("Yetkili"), v: o.owner },
+      { k: tx("Firma unvanı"), v: o.title }, { k: tx("Yetkili"), v: o.owner }, { k: tx("Yetkili TC"), v: o.ownerTc || "—" },
       { k: tx("Yetki belge no"), v: o.licence }, { k: tx("Sınıfı"), v: o.rank }, { k: tx("Adres"), v: o.address },
     ];
   }

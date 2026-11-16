@@ -50,8 +50,9 @@ Güvenlik açıklarını herkese açık kanaldan yazmayın; depo sahibine özel 
 
 ```bash
 make test       # birim testleri
-make pentest    # 461 saldırı senaryosu (--timing ile 471)
+make pentest    # 482 saldırı senaryosu (--timing ile 492)
 python3 security/update_test.py --help   # güncelleme saldırıları
+python3 security/goc_testi.py ESKI_IKILI YENI_IKILI   # önceki sürümden yükseltme (göç)
 make audit      # cargo audit + npm audit
 ```
 

@@ -231,6 +231,49 @@ async fn contractor_delete(
     ))
 }
 
+async fn inspection_create(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Body(input): Body<InspectionInput>,
+) -> ApiResult<Json<SubmitResult>> {
+    Ok(created(
+        state
+            .services
+            .records
+            .create_inspection(&auth.actor, input)
+            .await?,
+    ))
+}
+
+async fn inspection_update(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Path(id): Path<Uuid>,
+    Body(input): Body<InspectionInput>,
+) -> ApiResult<Json<SubmitResult>> {
+    Ok(done(
+        state
+            .services
+            .records
+            .update_inspection(&auth.actor, &id.to_string(), input)
+            .await?,
+    ))
+}
+
+async fn inspection_delete(
+    State(state): State<AppState>,
+    AuthUser(auth): AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<SubmitResult>> {
+    Ok(done(
+        state
+            .services
+            .records
+            .delete_inspection(&auth.actor, &id.to_string())
+            .await?,
+    ))
+}
+
 async fn task_add(
     State(state): State<AppState>,
     AuthUser(auth): AuthUser,
@@ -728,6 +771,11 @@ pub fn router() -> Router<AppState> {
         .route(
             "/contractors/{id}",
             put(contractor_update).delete(contractor_delete),
+        )
+        .route("/inspections", post(inspection_create))
+        .route(
+            "/inspections/{id}",
+            put(inspection_update).delete(inspection_delete),
         )
         .route("/tasks", post(task_add))
         .route("/tasks/{id}/toggle", post(task_toggle))

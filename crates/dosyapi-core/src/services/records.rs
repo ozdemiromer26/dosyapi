@@ -9,6 +9,7 @@ pub struct RecordService {
     pub gate: ChangeGate,
     pub authors: Arc<dyn AuthorRepo>,
     pub contractors: Arc<dyn ContractorRepo>,
+    pub inspections: Arc<dyn InspectionRepo>,
     pub projects: Arc<dyn ProjectRepo>,
     pub professions: Arc<dyn ProfessionRepo>,
     pub pendings: Arc<dyn PendingRepo>,
@@ -181,6 +182,74 @@ impl RecordService {
             format!("Silme: {}", contractor.title),
             "Kayıt silme talebi".into(),
             PendingPayload::ContractorDelete { id: id.to_string() },
+        );
+        self.gate.submit(actor, mode, item).await
+    }
+
+    pub async fn create_inspection(
+        &self,
+        actor: &Actor,
+        input: InspectionInput,
+    ) -> AppResult<(Id, Submitted)> {
+        let mode = Self::require_write(actor)?;
+        let input = normalize_inspection(&input)?;
+        let id = new_id();
+        let item = change(
+            PendingKind::Create,
+            Entity::Inspection,
+            format!("Yeni yapı denetim firması: {}", input.name),
+            format!("{} denetçi", input.inspectors.len()),
+            PendingPayload::InspectionCreate {
+                id: id.clone(),
+                input,
+            },
+        );
+        Ok((id, self.gate.submit(actor, mode, item).await?))
+    }
+
+    pub async fn update_inspection(
+        &self,
+        actor: &Actor,
+        id: &str,
+        input: InspectionInput,
+    ) -> AppResult<Submitted> {
+        let mode = Self::require_write(actor)?;
+        let current = self.inspections.get(id).await?.ok_or(AppError::NotFound)?;
+        ensure_unlocked(self.pendings.as_ref(), id).await?;
+        let input = normalize_inspection(&input)?;
+        let patch = diff(&current.input(), &input)?;
+        if patch.fields.is_empty() {
+            return Ok(Submitted::Applied);
+        }
+        let item = change(
+            PendingKind::Update,
+            Entity::Inspection,
+            format!("Yapı denetim düzenleme: {}", input.name),
+            format!("Değişen: {}", field_labels(&patch.fields)),
+            PendingPayload::InspectionUpdate {
+                id: id.to_string(),
+                input,
+                patch,
+            },
+        );
+        self.gate.submit(actor, mode, item).await
+    }
+
+    pub async fn delete_inspection(&self, actor: &Actor, id: &str) -> AppResult<Submitted> {
+        let mode = Self::require_write(actor)?;
+        let firm = self.inspections.get(id).await?.ok_or(AppError::NotFound)?;
+        ensure_unlocked(self.pendings.as_ref(), id).await?;
+        if self.projects.uses_inspection(id).await? {
+            return Err(AppError::conflict(
+                "Bu yapı denetim firması projelerde kullanılıyor; önce projelerden kaldırın.",
+            ));
+        }
+        let item = change(
+            PendingKind::Delete,
+            Entity::Inspection,
+            format!("Silme: {}", firm.name),
+            "Kayıt silme talebi".into(),
+            PendingPayload::InspectionDelete { id: id.to_string() },
         );
         self.gate.submit(actor, mode, item).await
     }

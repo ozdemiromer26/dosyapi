@@ -1,20 +1,21 @@
 # Sızma testi raporu
 
-Tarih: 2026-11-09. Hedef: yerel test örneği (`127.0.0.1`), sürüm 0.1.0. Testleri yazılımı geliştiren taraf yaptı; bu rapor
+Tarih: 2026-11-16. Hedef: yerel test örneği (`127.0.0.1`), sürüm 0.1.1. Testleri yazılımı geliştiren taraf yaptı; bu rapor
 bağımsız denetimin yerini tutmaz.
 
 ## Sonuçlar
 
 | Sınama | Araç | Sonuç |
 | --- | --- | --- |
-| Saldırı senaryoları | `security/pentest.py` | 461/461 geçti (hata ayıklama derlemesi) |
-| Sürüm derlemesi, gerçek Argon2id | `pentest.py --timing` | 471/471 geçti |
+| Saldırı senaryoları | `security/pentest.py` | 482/482 geçti (hata ayıklama derlemesi) |
+| Sürüm derlemesi, gerçek Argon2id | `pentest.py --timing` | 492/492 geçti |
+| Sürüm yükseltme (v0.1.0 → 0.1.1) | `security/goc_testi.py` | 15/15 geçti: göç, şifreli veri, eski onay talebi, eski yedeğin geri yüklenmesi |
 | Kullanıcı numaralandırma süresi | `pentest.py --timing` | Olmayan hesap 72 ms, var olan hesap 72 ms |
 | Güncelleme saldırıları | `security/update_test.py` | 18/18 geçti |
 | SQL enjeksiyonu taraması | sqlmap 1.10 (seviye 3, risk 2) | İki turda toplam 8 farklı uç noktada enjeksiyon bulunmadı |
-| Bilinen açıklar | `cargo audit`, `npm audit` | npm: 0 açık. cargo: 1 açık açık, 1 istisna (aşağıda) |
+| Bilinen açıklar | `cargo audit`, `npm audit` | npm: 0 açık. cargo: 0 açık, 2 istisna (biri geçici, aşağıda) |
 | Statik denetim | clippy `-D warnings`, TypeScript, shellcheck | Temiz |
-| Birim testleri | `cargo test` | 44/44 geçti |
+| Birim testleri | `cargo test` | 59/59 geçti |
 | Temiz kopyadan derleme | `make build` | Geçti |
 
 sqlmap kimliği doğrulanmış oturumla proje, müellif, not, profil uç noktalarını ve URL yolunu taradı. Uygulamaya binlerce yük
@@ -56,6 +57,7 @@ diye `.cargo/audit.toml` içinde geçici istisnadır; sqlx izin verdiğinde yük
 | Dosya | Sahte uzantı, çift uzantı, SVG, HTML, imzası bilinmeyen türde çalıştırılabilir/HTML içerik, belge tipine tehlikeli uzantı ekleme, boş dosya, yol geçişi, başlık enjeksiyonu, diskte düz veri araması |
 | Oturum | Sabitleme, çıkış sonrası yeniden kullanım, şifre değişiminde oturum kapatma, belirteç tekrarı |
 | Kaba kuvvet | Kademeli hesap kilidi (3/6/9/12 hata → 5 dk/15 dk/60 dk/süresiz), kilitliyken doğru şifre ve sayılmayan denemeler, süresiz kilidin zamanla ve şifre sıfırlamayla kalkmaması, Sistem Paneli'nde kilit görünürlüğü, kilit kaldırma (yetkisiz ve CSRF'siz denemeler dahil), süreli/süresiz yasak ve yasakla oturumun kapanması, master kilidi ve her 3 hatada artan 5 / 15 / 30 / 60 dk kademeleri, kilit ekranında IP sızmaması, `X-Forwarded-For` ile sınır aşma |
+| Yapı denetim | Yetkisiz firma ekleme, bilinmeyen alan, bozuk ve adsız denetçi, 51 denetçi, onaylı rolün firma talebi ve üst kademe onayı; projeye uydurma ve bozuk firma kimliği, aşırı uzun YİBF no, kullanılan firmayı silme; müteahhit yetkilisinin bozuk TC'si; salt okuma rolünde yetkili ve denetçi TC'lerinin maskelenmesi, diskte düz TC araması |
 | Çok meslekli müellif | Boş ve tanımsız meslek, tekrarların atılması, aynı müellifin iki meslek satırına atanması, taşımadığı mesleğe atanamama, meslek çıkarılınca atamanın kalkması |
 | Yedek | Panelden tam yedek ve doğrulama, yedekte düz metin (ad, TC, şirket, SQL şeması) araması, kullanıcı oturumuyla ve oturumsuz indirme, yol geçişi ve olmayan adlar, CSRF'siz anahtar indirme ve silme, yanlış master şifreyle anahtar, geçersiz ve bilinmeyen alanlı zamanlama; tek bayt değişikliği, kesilme, sona veri ekleme, başlık (zaman damgası) değişikliği, başka anahtar kimliği, sahte yedek dosyası, geçici dosya artığı |
 | Konsol | Konsoldan yedek ve doğrulama, bozuk yedek ve yanlış anahtarla doğrulama, sunucu çalışırken geri yükleme, başka anahtarla ve bozuk yedekle geri yükleme (veri yerinde kalır), doğrulanmış geri yükleme ve önceki verinin kenara alınması; `master-disable` ile panelin kapanması, açık oturumun düşmesi, kapalıyken doğru şifre; 5 hatada geçici kilit ve kilit ekranı bilgileri, `master-enable` ile kilit ve sayacın sıfırlanması, denetim günlüğü kayıtları; etkileşimsiz fabrika ayarı denemesinin reddi |

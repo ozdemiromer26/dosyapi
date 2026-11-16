@@ -968,7 +968,7 @@ dependencies = [
 
 [[package]]
 name = "dosyapi"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1006,7 +1006,7 @@ dependencies = [
 
 [[package]]
 name = "dosyapi-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "semver",
@@ -1022,7 +1022,7 @@ dependencies = [
 
 [[package]]
 name = "dosyapi-infra"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "aes-gcm",
  "ammonia",

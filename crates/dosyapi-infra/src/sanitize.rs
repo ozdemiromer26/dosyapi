@@ -136,15 +136,28 @@ fn safe_style(value: &str) -> bool {
     .any(|bad| lower.contains(bad))
 }
 
+const LOGO: &str = "/api/v1/public/logo";
+
 fn safe_image(value: &str) -> bool {
-    let is_data = [
+    [
         "data:image/png;base64,",
         "data:image/jpeg;base64,",
         "data:image/webp;base64,",
     ]
     .iter()
-    .any(|prefix| value.starts_with(prefix));
-    is_data || value == "/api/v1/public/logo"
+    .any(|prefix| value.starts_with(prefix))
+}
+
+/// Şirket logosu: arayüz önbelleği aşmak için `?v=<sayı>` ekleyebilir. Sorgu atılıp sabit
+/// adres saklanır; böylece logo değişince şablonlar da yenisini gösterir.
+fn is_logo(value: &str) -> bool {
+    match value.strip_prefix(LOGO) {
+        Some("") => true,
+        Some(query) => query
+            .strip_prefix("?v=")
+            .is_some_and(|v| !v.is_empty() && v.len() <= 20 && v.bytes().all(|b| b.is_ascii_digit())),
+        None => false,
+    }
 }
 
 pub struct AmmoniaSanitizer {
@@ -168,6 +181,7 @@ impl Default for AmmoniaSanitizer {
             .filter_style_properties(STYLE_PROPERTIES.iter().copied().collect())
             .attribute_filter(|element, attribute, value| match (element, attribute) {
                 (_, "style") if !safe_style(value) => None,
+                ("img", "src") if is_logo(value) => Some(Cow::Borrowed(LOGO)),
                 ("img", "src") if !safe_image(value) => None,
                 (_, "contenteditable") if value != "false" => None,
                 _ => Some(Cow::Borrowed(value)),
@@ -261,5 +275,23 @@ mod tests {
             out.contains("data:image/png") && out.contains("/api/v1/public/logo"),
             "{out}"
         );
+    }
+
+    #[test]
+    fn logo_with_cache_buster_is_kept_as_plain_logo() {
+        let clean = AmmoniaSanitizer::default();
+        let out = clean.sanitize(r#"<img src="/api/v1/public/logo?v=1794829108749" alt="Logo">"#);
+        assert!(out.contains(r#"src="/api/v1/public/logo""#), "{out}");
+        for bad in [
+            "/api/v1/public/logo?v=1&x=2",
+            "/api/v1/public/logo?v=",
+            "/api/v1/public/logo/../x",
+            "/api/v1/files/abc",
+        ] {
+            let out = clean.sanitize(&format!(r#"<img src="{bad}">"#));
+            assert!(!out.contains("src="), "{bad} -> {out}");
+        }
+        let out = clean.sanitize(r#"<img src="/api/v1/public/logo?v=1"onerror="alert(1)">"#);
+        assert!(!out.contains("onerror") && out.contains(r#"src="/api/v1/public/logo""#), "{out}");
     }
 }

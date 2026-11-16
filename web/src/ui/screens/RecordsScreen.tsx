@@ -2,7 +2,8 @@ import { st } from "../styles";
 import { css } from "../css";
 import type { Vals } from "../../vm/types";
 
-/** Müellifler ve müteahhitler aynı düzende: sekme, süzgeç, kart/liste, seçim, seçililerle belge. */
+/** Müellifler, müteahhitler ve yapı denetim firmaları aynı düzende: sekme, süzgeç, kart/liste;
+ *  müellif ve müteahhitte ayrıca seçim ve seçililerle belge. */
 
 const ELL = "white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
 const ICON_BTN = "flex:none;width:32px;height:30px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center";
@@ -22,7 +23,9 @@ function KV({ k, v }: { k: string; v: string }) {
 }
 
 export function RecordsScreen({ v }: { v: Vals }) {
-  const T = v.T, rows: any[] = v.recRows || [], narrow = !!v.recNarrow;
+  const T = v.T, rows: any[] = v.recRows || [], narrow = !!v.recNarrow, sel = !!v.recSelectable;
+  // Seçim kutusu yoksa yerinde boş hücre kalır; liste sütunları kaymaz.
+  const pick = (r: any) => sel ? <button onClick={r.onSelect} aria-pressed={r.on} aria-label={r.title} style={css(r.checkStyle)}>{r.checkMark}</button> : <span />;
   const docBtn = (
     <button onClick={v.printSelected} style={css("height:40px;padding:0 15px;border:none;border-radius:9px;background:var(--pri,#2a3180);color:#fff;font-size:13px;font-weight:700;cursor:pointer" + (narrow ? ";width:100%" : ""))}>{v.recDocLabel}</button>
   );
@@ -32,6 +35,7 @@ export function RecordsScreen({ v }: { v: Vals }) {
         <div style={css("display:flex;background:var(--soft3);border-radius:10px;padding:4px;gap:4px")}>
           <button onClick={v.recAuthors} style={css(v.recAuthStyle)}>{T.muellifler}</button>
           <button onClick={v.recContractors} style={css(v.recContStyle)}>{T.muteahhitler}</button>
+          <button onClick={v.recInspections} style={css(v.recInspStyle)}>{T.yapiDenetim}</button>
         </div>
         <select name="projFilter" onChange={v.onProjFilter} value={v.projFilterValue} aria-label={v.recFilterAll} style={css("flex:1;min-width:190px;height:40px;border:1px solid var(--line);background:var(--card);border-radius:9px;padding:0 10px;font-size:13px;font-weight:700")}>
           <option value="">{v.recFilterAll}</option>
@@ -45,8 +49,8 @@ export function RecordsScreen({ v }: { v: Vals }) {
 
       <div style={st.stack13}>
         <div style={css("display:flex;gap:9px;flex-wrap:wrap;align-items:center")}>
-          {narrow ? null : docBtn}
-          <button onClick={v.selectAll} style={css("height:40px;padding:0 13px;border:1px solid var(--line);background:var(--card);border-radius:9px;font-size:13px;font-weight:700;cursor:pointer" + (narrow ? ";flex:1" : ""))}>{v.selectAllLabel}</button>
+          {narrow || !sel ? null : docBtn}
+          {sel ? <button onClick={v.selectAll} style={css("height:40px;padding:0 13px;border:1px solid var(--line);background:var(--card);border-radius:9px;font-size:13px;font-weight:700;cursor:pointer" + (narrow ? ";flex:1" : ""))}>{v.selectAllLabel}</button> : null}
           {v.canWriteRecords ? (
             <button onClick={v.addRecord} style={css("height:40px;padding:0 15px;border:1px dashed var(--pri,#2a3180);background:var(--tint);border-radius:9px;color:var(--brandink);font-size:13px;font-weight:700;cursor:pointer" + (narrow ? ";flex:1" : ""))}>{v.recAddLabel}</button>
           ) : null}
@@ -59,14 +63,14 @@ export function RecordsScreen({ v }: { v: Vals }) {
             {rows.map((r) => (
               <div key={r.id} style={css("height:100%;display:flex;flex-direction:column;background:var(--card);border-radius:13px;padding:14px;border:1px solid " + (r.on ? "var(--pri,#2a3180)" : "var(--line)"))}>
                 <div style={css("display:flex;align-items:center;gap:10px")}>
-                  <button onClick={r.onSelect} aria-pressed={r.on} aria-label={r.title} style={css(r.checkStyle)}>{r.checkMark}</button>
+                  {sel ? <button onClick={r.onSelect} aria-pressed={r.on} aria-label={r.title} style={css(r.checkStyle)}>{r.checkMark}</button> : null}
                   <div style={css("flex:1;min-width:0")}>
                     <div style={st.title14}>{r.title}</div>
                     <div style={st.hintBold}>{r.sub}</div>
                   </div>
-                  <button onClick={r.onDoc} style={css(DOC_BTN)}>{T.belge2}</button>
+                  {sel ? <button onClick={r.onDoc} style={css(DOC_BTN)}>{T.belge2}</button> : null}
                 </div>
-                <div style={css("display:flex;flex-direction:column;gap:4px;margin-top:12px;padding-left:34px;min-width:0")}>
+                <div style={css("display:flex;flex-direction:column;gap:4px;margin-top:12px;min-width:0;padding-left:" + (sel ? "34px" : "0"))}>
                   <KV k={r.k1} v={r.v1} />
                   <KV k={r.k2} v={r.v2} />
                 </div>
@@ -85,7 +89,7 @@ export function RecordsScreen({ v }: { v: Vals }) {
           <div role="list" style={css("background:var(--card);border:1px solid var(--line);border-radius:13px;overflow:hidden")}>
             {rows.map((r) => (
               <div role="listitem" key={r.id} style={css("display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line2)")}>
-                <button onClick={r.onSelect} aria-pressed={r.on} aria-label={r.title} style={css(r.checkStyle)}>{r.checkMark}</button>
+                {sel ? <button onClick={r.onSelect} aria-pressed={r.on} aria-label={r.title} style={css(r.checkStyle)}>{r.checkMark}</button> : null}
                 <div style={css("flex:1;min-width:0")}>
                   <div style={st.title14}>{r.title}</div>
                   <div style={st.hintBold}>{r.sub}</div>
@@ -113,13 +117,13 @@ export function RecordsScreen({ v }: { v: Vals }) {
             </div>
             {rows.map((r) => (
               <div role="row" key={r.id} style={css("display:grid;grid-template-columns:subgrid;grid-column:1 / -1;align-items:center;row-gap:8px;padding:12px 16px;border-bottom:1px solid var(--line2)")}>
-                <button onClick={r.onSelect} aria-pressed={r.on} aria-label={r.title} style={css(r.checkStyle)}>{r.checkMark}</button>
+                {pick(r)}
                 <div style={st.rowTitle}>{r.title}</div>
                 <div style={css("font-size:13px;font-weight:600;color:var(--muted);" + ELL)}>{r.sub}</div>
                 <div style={css("font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;" + ELL)}>{r.v1}</div>
                 <div style={css("font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;" + ELL)}>{r.v2}</div>
                 <div style={css("display:flex;gap:6px;justify-content:flex-end")}>
-                  <button onClick={r.onDoc} style={css(DOC_BTN)}>{T.belge2}</button>
+                  {sel ? <button onClick={r.onDoc} style={css(DOC_BTN)}>{T.belge2}</button> : null}
                   {r.canWrite ? (<>
                     <button onClick={r.onEdit} style={css("height:30px;padding:0 10px;border:1px solid var(--line);background:var(--card);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer")}>{T.duzenle}</button>
                     <button onClick={r.onDelete} style={css("height:30px;padding:0 10px;border:1px solid var(--errline);background:var(--err);color:var(--errtext);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer")}>{T.sil}</button>
@@ -130,7 +134,7 @@ export function RecordsScreen({ v }: { v: Vals }) {
           </div>
         ) : null}
 
-        {narrow ? docBtn : null}
+        {narrow && sel ? docBtn : null}
       </div>
     </div>
   );

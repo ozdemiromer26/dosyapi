@@ -114,7 +114,7 @@ export function buildTemplates(c: Ctx): () => Vals {
         tbColors: COLORS.map(c => ({ hex: c, style: "width:26px;height:26px;flex:none;border-radius:6px;border:1px solid var(--line);cursor:pointer;background:" + c, onPick: () => app.edExec("foreColor", c) })),
         tblRowOpts: [1, 2, 3, 4, 5, 6, 8, 10].map(n => ({ v: String(n) })), tblColOpts: [1, 2, 3, 4, 5, 6, 8].map(n => ({ v: String(n) })),
         tbInsertTable: () => { const r = +(app.fd.tblRows || 3), c = +(app.fd.tblCols || 3); app.edInsert(TABLE(r, c), true); app.setState({ edPop: null }); },
-        tbLogo: () => { if (!s.company.logoUrl) return app.toast(tx("Önce sistem panelinden şirket logosu yükleyin.")); app.edInsert('<img src="' + s.company.logoUrl + '" alt="Logo" style="width:22%;max-width:100%">', false); app.setState({ edPop: null }); },
+        tbLogo: () => { if (!s.company.logoUrl) return app.toast(tx("Önce sistem panelinden şirket logosu yükleyin.")); app.edInsert('<img src="/api/v1/public/logo" alt="Logo" style="width:22%;max-width:100%">', false); app.setState({ edPop: null }); },
         tbImgFile: (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { app.edInsert('<img src="' + rd.result + '" alt="" style="width:40%;max-width:100%">', false); app.setState({ edPop: null }); }; rd.readAsDataURL(f); e.target.value = ""; },
         tbSigR: () => { app.edInsert(SIG("right", tx("Ad Soyad") + "<br>" + tx("İmza")), true); app.setState({ edPop: null }); },
         tbSigL: () => { app.edInsert(SIG("left", tx("Ad Soyad") + "<br>" + tx("İmza")), true); app.setState({ edPop: null }); },

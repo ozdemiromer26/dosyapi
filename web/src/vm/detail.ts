@@ -181,6 +181,16 @@ export function buildDetail(c: Ctx): () => Vals {
           ],
           note: cur.note || "",
           noNote: !cur.note,
+          // Yapı denetim: YİBF no ve seçili firmanın adı, telefonu, denetçileri (TC'ler yetkiye göre maskeli gelir).
+          inspection: (() => {
+            const firm = (s.inspections || []).find(x => x.id === cur.inspectionId);
+            return {
+              yibf: cur.yibf || "—",
+              firm: firm ? firm.name : (cur.inspection || "—"),
+              phone: firm && firm.phone ? String(firm.phone).replace(/^0/, "+90 ") : "",
+              inspectors: firm ? (firm.inspectors || []).map((p, n) => ({ key: n + ":" + p.name, name: p.name, tc: p.tc ? tx("TC") + " " + p.tc : "" })) : [],
+            };
+          })(),
           statusLabel: curD.statusLabel, badgeStyle: curD.badgeStyle,
           photoUrl: cur.photoAt ? "/api/v1/projects/" + cur.id + "/photo?v=" + cur.photoAt : "",
           photoBoxStyle: "position:relative;width:100%;aspect-ratio:" + (wide ? "4 / 3" : "16 / 9") + ";border-radius:12px;overflow:hidden;background:var(--soft2);border:1px solid var(--line2);display:flex;align-items:center;justify-content:center",
@@ -193,7 +203,7 @@ export function buildDetail(c: Ctx): () => Vals {
           },
           onPhotoRemove: () => app.removePhoto(cur.id),
           onEdit: () => {
-            ["inName", "inContractor", "inMahalle", "inStreet", "inPafta", "inAda", "inParsel", "inStatus", "inNote"].forEach(k => { delete app.fd[k]; });
+            ["inName", "inContractor", "inMahalle", "inStreet", "inPafta", "inAda", "inParsel", "inStatus", "inNote", "inYibf", "inInspection"].forEach(k => { delete app.fd[k]; });
             app.setState({ infoEdit: cur.id });
           },
           onCancel: () => app.setState({ infoEdit: null }),
@@ -207,7 +217,10 @@ export function buildDetail(c: Ctx): () => Vals {
             name: val("inName", cur.name), contractorId: val("inContractor", cur.contractorId),
             mahalle: val("inMahalle", cur.mahalle), street: val("inStreet", cur.street), pafta: val("inPafta", cur.pafta),
             ada: val("inAda", cur.ada), parsel: val("inParsel", cur.parsel), status: val("inStatus", cur.status), note: val("inNote", cur.note),
+            yibf: val("inYibf", cur.yibf), inspectionId: val("inInspection", cur.inspectionId),
           },
+          inspectionOptions: (s.inspections || []).map(x => ({ id: x.id, name: x.name })),
+          onInspection: (e) => { if (e.target.value === ADD_OPTION) { e.target.value = (cur && cur.inspectionId) || ""; app.goAddRecord("inspection"); } else app.fd[e.target.name] = e.target.value; },
           contractorOptions: s.contractors.map(x => ({ id: x.id, title: x.title })),
           canAddContractor: c.canWriteRecords,
           onContractor: (e) => { if (e.target.value === ADD_OPTION) { e.target.value = (cur && cur.contractorId) || ""; app.goAddRecord("contractor"); } else app.fd[e.target.name] = e.target.value; },
@@ -219,6 +232,7 @@ export function buildDetail(c: Ctx): () => Vals {
               mahalle: val("inMahalle", cur.mahalle).trim(), street: val("inStreet", cur.street).trim(),
               pafta: val("inPafta", cur.pafta).trim(), ada: val("inAda", cur.ada).trim(), parsel: val("inParsel", cur.parsel).trim(),
               status: val("inStatus", cur.status), note: val("inNote", cur.note),
+              yibf: val("inYibf", cur.yibf).trim(), inspectionId: val("inInspection", cur.inspectionId),
             };
             const miss = [["name", tx("İnşaat adı")], ["contractorId", tx("Müteahhit")], ["mahalle", tx("Mahalle")], ["street", tx("Cadde / sokak")], ["ada", tx("Ada no")], ["parsel", tx("Parsel no")]].filter(x => !String(payload[x[0]] || "").trim());
             if (miss.length) return app.toast(tx("Zorunlu alanlar eksik: ") + miss.map(x => x[1]).join(", "));

@@ -1120,6 +1120,7 @@ impl DataEraser for SqliteEraser {
             "files",
             "project_authors",
             "projects",
+            "inspections",
             "authors",
             "contractors",
             "doc_types",

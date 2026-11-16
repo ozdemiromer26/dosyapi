@@ -5,8 +5,9 @@ import { cleanHtml } from "./sanitize";
 const anyList = (x: any): any[] => Array.from(x);
 export const VAR_GROUPS = [
   { id: "genel", label: "Genel", short: "", ctx: ["project", "authors", "contractor"], items: [["genel.tarih", "Bugünün tarihi"], ["genel.tarihUzun", "Tarih (uzun)"], ["genel.sirket", "Şirket adı"], ["genel.belgeNo", "Belge no"]] },
-  { id: "proje", label: "Proje", short: "", ctx: ["project", "authors"], items: [["proje.adi", "Proje adı"], ["proje.ada", "Ada no"], ["proje.parsel", "Parsel no"], ["proje.pafta", "Pafta no"], ["proje.mahalle", "Mahalle"], ["proje.cadde", "Cadde / sokak"], ["proje.adres", "Proje adresi"], ["proje.durum", "Proje durumu"], ["proje.belgeDurumu", "Belge durumu"], ["proje.not", "Proje notu"]] },
-  { id: "muteahhit", label: "Müteahhit", short: "Müteahhit", ctx: ["project", "authors", "contractor"], items: [["muteahhit.unvan", "Firma unvanı"], ["muteahhit.yetkili", "Yetkili"], ["muteahhit.yetkiNo", "Yetki belge no"], ["muteahhit.sinif", "Sınıfı"], ["muteahhit.adres", "Adres"]] },
+  { id: "proje", label: "Proje", short: "", ctx: ["project", "authors"], items: [["proje.adi", "Proje adı"], ["proje.ada", "Ada no"], ["proje.parsel", "Parsel no"], ["proje.pafta", "Pafta no"], ["proje.mahalle", "Mahalle"], ["proje.cadde", "Cadde / sokak"], ["proje.adres", "Proje adresi"], ["proje.yibf", "YİBF no"], ["proje.durum", "Proje durumu"], ["proje.belgeDurumu", "Belge durumu"], ["proje.not", "Proje notu"]] },
+  { id: "muteahhit", label: "Müteahhit", short: "Müteahhit", ctx: ["project", "authors", "contractor"], items: [["muteahhit.unvan", "Firma unvanı"], ["muteahhit.yetkili", "Yetkili"], ["muteahhit.yetkiliTc", "Yetkili TC No"], ["muteahhit.yetkiNo", "Yetki belge no"], ["muteahhit.sinif", "Sınıfı"], ["muteahhit.adres", "Adres"]] },
+  { id: "yapiDenetim", label: "Yapı denetim", short: "Yapı denetim", ctx: ["project", "authors"], items: [["yapiDenetim.firma", "Firma adı"], ["yapiDenetim.telefon", "Telefon"], ["yapiDenetim.yibf", "YİBF no"]] },
   { id: "mimar", label: "Projenin mimarı", short: "Mimar", ctx: ["project", "authors"], items: [["mimar.adSoyad", "Ad Soyad"], ["mimar.tc", "TC No"], ["mimar.sicil", "Oda sicil no"], ["mimar.telefon", "Telefon"], ["mimar.sirket", "Büro / şirket"], ["mimar.adres", "Adres"]] },
   { id: "muellif", label: "Müellif (ilk seçili)", short: "Müellif", ctx: ["authors"], items: [["muellif.adSoyad", "Ad Soyad"], ["muellif.tc", "TC No"], ["muellif.meslek", "Meslek"], ["muellif.sicil", "Oda sicil no"], ["muellif.telefon", "Telefon"], ["muellif.sirket", "Büro / şirket"], ["muellif.adres", "Adres"]] },
   { id: "arsaSahibi", label: "Arsa sahibi (ilk)", short: "Arsa sahibi", ctx: ["project"], items: [["arsaSahibi.ad", "Ad Soyad"], ["arsaSahibi.tc", "TC No"], ["arsaSahibi.telefon", "Telefon"], ["arsaSahibi.adres", "Adres"], ["arsaSahibi.hisse", "Hisse"]] },
@@ -15,7 +16,9 @@ export const VAR_GROUPS = [
 export const LISTS = {
   muellifler: { label: "Müellifler", ctx: ["project", "authors"], fields: [["sira", "Sıra"], ["adSoyad", "Ad Soyad"], ["meslek", "Meslek"], ["tc", "TC No"], ["telefon", "Telefon"], ["sirket", "Büro / şirket"], ["sicil", "Oda sicil no"], ["adres", "Adres"]] },
   // Kayıtlar ekranında seçilen müteahhitler (tek müteahhitte de bir satır).
-  muteahhitler: { label: "Müteahhitler", ctx: ["contractor"], fields: [["sira", "Sıra"], ["unvan", "Firma unvanı"], ["yetkili", "Yetkili"], ["yetkiNo", "Yetki belge no"], ["sinif", "Sınıfı"], ["adres", "Adres"]] },
+  muteahhitler: { label: "Müteahhitler", ctx: ["contractor"], fields: [["sira", "Sıra"], ["unvan", "Firma unvanı"], ["yetkili", "Yetkili"], ["yetkiliTc", "Yetkili TC No"], ["yetkiNo", "Yetki belge no"], ["sinif", "Sınıfı"], ["adres", "Adres"]] },
+  // Projenin yapı denetim firmasındaki denetçiler.
+  denetciler: { label: "Denetçiler", ctx: ["project", "authors"], fields: [["sira", "Sıra"], ["ad", "Ad Soyad"], ["tc", "TC No"]] },
   arsaSahipleri: { label: "Arsa sahipleri", ctx: ["project"], fields: [["sira", "Sıra"], ["ad", "Ad Soyad"], ["tc", "TC No"], ["telefon", "Telefon"], ["adres", "Adres"], ["hisse", "Hisse"], ["imza", "İmza alanı"]] },
 };
 export const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

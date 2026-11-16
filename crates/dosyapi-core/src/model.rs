@@ -289,6 +289,12 @@ pub struct Project {
     pub contractor_id: Id,
     /// Görüntüleme için müteahhidin güncel unvanı (kayıttan okunur, saklanmaz).
     pub contractor: String,
+    /// Yapı İzin Bilgi Formu numarası.
+    pub yibf: String,
+    /// Yapı denetim firması; boşsa atanmamış.
+    pub inspection_id: Id,
+    /// Görüntüleme için firmanın güncel adı (kayıttan okunur, saklanmaz).
+    pub inspection: String,
     pub ada: String,
     pub parsel: String,
     pub pafta: String,
@@ -327,6 +333,10 @@ pub struct ProjectInput {
     pub owners: Vec<Owner>,
     #[serde(default)]
     pub proxy: Proxy,
+    #[serde(default)]
+    pub yibf: String,
+    #[serde(default)]
+    pub inspection_id: Id,
 }
 
 impl Project {
@@ -343,6 +353,8 @@ impl Project {
             note: self.note.clone(),
             owners: self.owners.clone(),
             proxy: self.proxy.clone(),
+            yibf: self.yibf.clone(),
+            inspection_id: self.inspection_id.clone(),
         }
     }
 }
@@ -410,6 +422,8 @@ pub struct Contractor {
     pub id: Id,
     pub title: String,
     pub owner: String,
+    /// Yetkilinin TC kimlik no'su (diskte şifreli).
+    pub owner_tc: String,
     pub licence: String,
     pub rank: String,
     pub address: String,
@@ -421,6 +435,8 @@ pub struct ContractorInput {
     pub title: String,
     #[serde(default)]
     pub owner: String,
+    #[serde(default)]
+    pub owner_tc: String,
     #[serde(default)]
     pub licence: String,
     #[serde(default)]
@@ -434,9 +450,50 @@ impl Contractor {
         ContractorInput {
             title: self.title.clone(),
             owner: self.owner.clone(),
+            owner_tc: self.owner_tc.clone(),
             licence: self.licence.clone(),
             rank: self.rank.clone(),
             address: self.address.clone(),
+        }
+    }
+}
+
+/// Yapı denetim firmasında görevli denetçi.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Inspector {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub tc: String,
+}
+
+/// Yapı denetim firması; projeye seçilir.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Inspection {
+    pub id: Id,
+    pub name: String,
+    pub phone: String,
+    pub inspectors: Vec<Inspector>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InspectionInput {
+    pub name: String,
+    #[serde(default)]
+    pub phone: String,
+    #[serde(default)]
+    pub inspectors: Vec<Inspector>,
+}
+
+impl Inspection {
+    pub fn input(&self) -> InspectionInput {
+        InspectionInput {
+            name: self.name.clone(),
+            phone: self.phone.clone(),
+            inspectors: self.inspectors.clone(),
         }
     }
 }
@@ -629,6 +686,7 @@ pub enum Entity {
     Project,
     Author,
     Contractor,
+    Inspection,
     User,
 }
 
@@ -638,6 +696,7 @@ impl Entity {
             Self::Project => "project",
             Self::Author => "author",
             Self::Contractor => "contractor",
+            Self::Inspection => "inspection",
             Self::User => "user",
         }
     }
@@ -646,6 +705,7 @@ impl Entity {
             "project" => Self::Project,
             "author" => Self::Author,
             "contractor" => Self::Contractor,
+            "inspection" => Self::Inspection,
             "user" => Self::User,
             _ => return None,
         })
@@ -699,6 +759,18 @@ pub enum PendingPayload {
         patch: FieldPatch,
     },
     ContractorDelete {
+        id: Id,
+    },
+    InspectionCreate {
+        id: Id,
+        input: InspectionInput,
+    },
+    InspectionUpdate {
+        id: Id,
+        input: InspectionInput,
+        patch: FieldPatch,
+    },
+    InspectionDelete {
         id: Id,
     },
     FileAdd {

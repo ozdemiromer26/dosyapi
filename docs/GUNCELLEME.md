@@ -66,3 +66,12 @@ sonra eskisini çıkarın.
 Göçler (`crates/dosyapi-infra/migrations`) açılışta otomatik uygulanır. Geri dönüşün çalışması için göçler **eklemeli**
 olmalıdır: bir sürümde kolon kaldırmayın ya da yeniden adlandırmayın, önce kullanımını bırakıp sonraki sürümde silin. Eski ikili
 yeni göçleri görmezden gelerek açılır. Yıkıcı bir göç gerekirse kurulumdan önce alınan `pre-update` yedeği geri yüklenmelidir.
+
+Yayımlanmış bir göç dosyası (`0001_init.sql` dahil) değiştirilmez; kurulu veritabanlarında kayıtlı özeti tutmaz ve sunucu
+açılmaz. Her şema değişikliği yeni sıralı bir dosyadır (`0002_…`). Yayından önce önceki sürümden yükseltme sınanır:
+
+```bash
+git worktree add /tmp/eski v0.1.0
+(cd /tmp/eski/web && npm ci && npm run build) && (cd /tmp/eski && cargo build -p dosyapi)
+python3 security/goc_testi.py /tmp/eski/target/debug/dosyapi target/release/dosyapi
+```

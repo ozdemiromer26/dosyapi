@@ -70,6 +70,14 @@ export function Sheets({ v }: { v: Vals }) {
                 </React.Fragment>))}
                 {v.canAddContractor ? <><option disabled value="">──────────</option><option value="__add__">{v.T.muteahhitEkleArti}</option></> : null}
               </select>
+              <div style={st.rowWrap10}>
+                <input name="prYibf" onChange={v.onField} defaultValue={v.draft.yibf} placeholder={v.T.yibfNo} inputMode="numeric" style={css("flex:1;min-width:120px;height:40px;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:0 11px;font-size:14px;font-weight:600")} />
+                <select name="prInspection" aria-label={v.T.yapiDenetimFirmasi} onChange={v.onPrInspection} defaultValue={v.draft.inspectionId || ""} style={css("flex:2;min-width:180px;height:40px;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:0 10px;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer")}>
+                  <option value="">{v.T.yapiDenetimSec}</option>
+                  {(v.inspectionOptions || []).map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  {v.canAddContractor ? <><option disabled value="">──────────</option><option value="__add__">{v.T.yapiDenetimEkleArti}</option></> : null}
+                </select>
+              </div>
               <input name="prMahalle" onChange={v.onField} defaultValue={v.draft.mahalle} placeholder={v.T.mahalle} style={st.field} />
               <input name="prStreet" onChange={v.onField} defaultValue={v.draft.street} placeholder={v.T.caddeSokakVeKapi} style={st.field} />
               <div style={st.rowWrap10}>
@@ -143,13 +151,36 @@ export function Sheets({ v }: { v: Vals }) {
           {v.sheetIsContractor ? (<>
             <div style={st.stack11}>
               <input name="coTitle" onChange={v.onField} defaultValue={v.draft.title} placeholder={v.T.firmaUnvani} style={st.field} />
-              <input name="coOwner" onChange={v.onField} defaultValue={v.draft.owner} placeholder={v.T.yetkiliIsimSoyisim} style={st.field} />
+              <div style={st.rowWrap10}>
+                <input name="coOwner" onChange={v.onField} defaultValue={v.draft.owner} placeholder={v.T.yetkiliIsimSoyisim} style={css("flex:2;min-width:170px;height:40px;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:0 11px;font-size:14px;font-weight:600")} />
+                <input name="coOwnerTc" onChange={v.onField} defaultValue={v.draft.ownerTc} placeholder={v.T.yetkiliTc} inputMode="numeric" maxLength={11} style={css("flex:1;min-width:130px;height:40px;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:0 11px;font-size:14px;font-weight:600")} />
+              </div>
               <div style={st.rowWrap10}>
                 <input name="coLicence" onChange={v.onField} defaultValue={v.draft.licence} placeholder={v.T.yetkiBelgeNo} style={css("flex:1;min-width:130px;height:40px;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:0 11px;font-size:14px;font-weight:600")} />
                 <input name="coRank" onChange={v.onField} defaultValue={v.draft.rank} placeholder={v.T.sinifiBC} style={css("flex:1;min-width:110px;height:40px;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:0 11px;font-size:14px;font-weight:600")} />
               </div>
               <input name="coAddress" onChange={v.onField} defaultValue={v.draft.address} placeholder={v.T.adres} style={st.field} />
               <button onClick={v.saveContractor} style={st.primary}>{v.saveLabel}</button>
+            </div>
+          </>) : null}
+
+          {v.sheetIsInspection ? (<>
+            <div style={st.stack11}>
+              <input name="ifName" onChange={v.onField} defaultValue={v.draft.name} placeholder={v.T.yapiDenetimFirmaAdi} style={st.field} />
+              <input name="ifPhone" onChange={v.onField} defaultValue={v.draft.phone} placeholder={v.T.telefonPh} inputMode="tel" style={st.field} />
+              <div style={css("display:flex;flex-direction:column;gap:8px")}>
+                <div style={css("font-size:11px;font-weight:800;letter-spacing:.5px;color:var(--muted)")}>{v.T.denetcilerUp}</div>
+                {(v.draftInspectors || []).map((r: any) => (
+                  <div key={r.key} style={css("display:flex;gap:8px;align-items:center")}>
+                    <input aria-label={r.nameLabel} onChange={r.onName} defaultValue={r.name} placeholder={v.T.denetciAdSoyad} style={css("flex:2;min-width:0;height:40px;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:0 11px;font-size:13px;font-weight:600")} />
+                    <input aria-label={r.nameLabel + " TC"} onChange={r.onTc} defaultValue={r.tc} placeholder={v.T.tcKimlikNoPh} inputMode="numeric" maxLength={11} style={css("flex:1;min-width:0;height:40px;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:0 11px;font-size:13px;font-weight:600")} />
+                    <button onClick={r.onRemove} aria-label={v.T.sil} style={css("flex:none;width:36px;height:40px;border:1px solid var(--errline);background:var(--err);color:var(--errtext);border-radius:9px;font-size:12px;font-weight:700;cursor:pointer")}>✕</button>
+                  </div>
+                ))}
+                <button onClick={v.addInspector} style={css("height:40px;border:1px dashed var(--pri,#2a3180);background:var(--tint);border-radius:9px;color:var(--brandink);font-size:13px;font-weight:700;cursor:pointer")}>{v.T.denetciEkle}</button>
+              </div>
+              {v.needsApproval ? <NoteBox tone="info" extra="font-size:12px">{v.T.kayitUstKademeOnayina}</NoteBox> : null}
+              <button onClick={v.saveInspection} style={st.primary}>{v.saveLabel}</button>
             </div>
           </>) : null}
 

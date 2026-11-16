@@ -3,6 +3,7 @@ import { shareTotal } from "../domain/shares";
 import type { Ctx, Vals } from "./types";
 import { tx } from "../i18n";
 import { esc } from "../documents/template";
+import { uid } from "../domain/constants";
 /*IMPORTS*/
 
 export function buildSheets(c: Ctx): () => Vals {
@@ -14,7 +15,7 @@ export function buildSheets(c: Ctx): () => Vals {
     return {
       sheetOpen: !!s.sheet, sheetTitle: sheetTitles[sh.type] || "",
       sheetIsProject: sh.type === "project", sheetIsPeople: sh.type === "people", sheetIsAuthor: sh.type === "author",
-      sheetIsContractor: sh.type === "contractor", sheetIsDoc: sh.type === "doc", sheetIsConfirm: sh.type === "confirm",
+      sheetIsContractor: sh.type === "contractor", sheetIsInspection: sh.type === "inspection", sheetIsDoc: sh.type === "doc", sheetIsConfirm: sh.type === "confirm",
       sheetIsMenu: sh.type === "menu",
       closeSheet: () => { app.fd = {}; app.setState({ sheet: null, draft: {} }); },
       draft: s.draft || {},
@@ -33,6 +34,8 @@ export function buildSheets(c: Ctx): () => Vals {
           street: f.prStreet !== undefined ? f.prStreet : (d.street || ""),
           status: f.prStatus !== undefined ? f.prStatus : (d.status || ""),
           note: f.prNote !== undefined ? f.prNote : (d.note || ""),
+          yibf: f.prYibf !== undefined ? f.prYibf : (d.yibf || ""),
+          inspectionId: f.prInspection !== undefined ? f.prInspection : (d.inspectionId || ""),
           authorIds: d.authorIds || [], docs: d.docs || {}, files: d.files || [],
           owners: d.owners || [],
           proxy: {
@@ -66,11 +69,33 @@ export function buildSheets(c: Ctx): () => Vals {
         const payload = {
           id: d.id || "",
           title: f.coTitle !== undefined ? f.coTitle : (d.title || ""), owner: f.coOwner !== undefined ? f.coOwner : (d.owner || ""),
+          ownerTc: f.coOwnerTc !== undefined ? f.coOwnerTc : (d.ownerTc || ""),
           licence: f.coLicence !== undefined ? f.coLicence : (d.licence || ""), rank: f.coRank !== undefined ? f.coRank : (d.rank || ""),
           address: f.coAddress !== undefined ? f.coAddress : (d.address || ""),
         };
         if (!payload.title.trim()) return app.toast(tx("Firma unvanı zorunlu."));
         app.commit(d.id ? "update" : "create", "contractor", payload, (d.id ? tx("Müteahhit düzenleme") : tx("Yeni müteahhit")) + ": " + payload.title);
+      },
+      // Yapı denetim firması: denetçi satırları taslakta tutulur; alanlar yazıldıkça satıra işlenir.
+      draftInspectors: ((s.draft || {}).inspectors || []).map((row, n) => {
+        if (!row._k) row._k = uid();
+        return {
+          key: row._k, name: row.name || "", tc: row.tc || "", nameLabel: tx("Denetçi") + " " + (n + 1),
+          onName: (e) => { row.name = e.target.value; }, onTc: (e) => { row.tc = e.target.value; },
+          onRemove: () => app.setState(st => ({ draft: { ...st.draft, inspectors: (st.draft.inspectors || []).filter(x => x !== row) } })),
+        };
+      }),
+      addInspector: () => app.setState(st => ({ draft: { ...st.draft, inspectors: [...((st.draft || {}).inspectors || []), { _k: uid(), name: "", tc: "" }] } })),
+      saveInspection: () => {
+        const d = s.draft || {}, f = app.fd;
+        const payload = {
+          id: d.id || "",
+          name: f.ifName !== undefined ? f.ifName : (d.name || ""), phone: f.ifPhone !== undefined ? f.ifPhone : (d.phone || ""),
+          inspectors: (d.inspectors || []).map(x => ({ name: String(x.name || "").trim(), tc: String(x.tc || "").trim() })).filter(x => x.name || x.tc),
+        };
+        if (!payload.name.trim()) return app.toast(tx("Firma adı zorunlu."));
+        if (payload.inspectors.some(x => !x.name)) return app.toast(tx("Denetçinin adını girin."));
+        app.commit(d.id ? "update" : "create", "inspection", payload, (d.id ? tx("Yapı denetim düzenleme") : tx("Yeni yapı denetim firması")) + ": " + payload.name);
       },
       confirmText: sh.action === "withdraw" && sh.obj ? "“" + sh.obj.title + tx("” talebi geri çekilecek; değişiklik uygulanmaz.") : sh.entity === "template" && sh.obj ? "“" + sh.obj.name + tx("” şablonu silinecek. Birkaç saniye içinde geri alabilirsiniz.") : sh.obj ? "“" + (sh.obj.name || sh.obj.title || (sh.obj.first + " " + sh.obj.last)) + tx("” kaydı silinecek.") + (sh.entity === "user" ? tx(" Kullanıcı erişimi kalıcı olarak kapanır.") : (sh.entity === "project" ? (directProjects ? tx(" Birkaç saniye içinde geri alabilirsiniz.") : tx(" Talep onaya gönderilecek.")) : (directRecords ? tx(" Birkaç saniye içinde geri alabilirsiniz.") : tx(" Talep onaya gönderilecek.")))) : "",
       confirmCta: sh.action === "withdraw" ? tx("Talebi geri çek") : sh.entity === "template" ? tx("Şablonu sil") : sh.entity === "user" ? tx("Kullanıcıyı sil") : ((sh.entity === "project" ? directProjects : directRecords) ? tx("Sil") : tx("Onaya gönder")),
@@ -78,8 +103,9 @@ export function buildSheets(c: Ctx): () => Vals {
         const o = sh.obj;
         if (sh.action === "withdraw") { app.setState({ sheet: null }); app.act(() => app.api.post("/approvals/" + o.id + "/withdraw", {}), tx("Talep geri çekildi.")); return; }
         if (sh.entity === "contractor" && s.projects.some(p => p.contractorId === o.id)) { app.setState({ sheet: null }); return app.toast(tx("Bu müteahhit projelerde kullanılıyor; önce projelerden kaldırın.")); }
-        const paths = { template: "/templates/", project: "/projects/", author: "/authors/", contractor: "/contractors/" };
-        const lists = { template: "templates", project: "projects", author: "authors", contractor: "contractors" };
+        if (sh.entity === "inspection" && s.projects.some(p => p.inspectionId === o.id)) { app.setState({ sheet: null }); return app.toast(tx("Bu yapı denetim firması projelerde kullanılıyor; önce projelerden kaldırın.")); }
+        const paths = { template: "/templates/", project: "/projects/", author: "/authors/", contractor: "/contractors/", inspection: "/inspections/" };
+        const lists = { template: "templates", project: "projects", author: "authors", contractor: "contractors", inspection: "inspections" };
         if (sh.entity === "user") { app.setState({ sheet: null }); app.act(() => app.api.del("/users/" + o.id), o.name + tx(" silindi.")); return; }
         const label = o.name || o.title || (o.first + " " + o.last);
         const direct = sh.entity === "template" || (sh.entity === "project" ? directProjects : directRecords);

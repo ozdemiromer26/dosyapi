@@ -11,12 +11,12 @@
 </p>
 
 <p align="center">
-  <img alt="Sürüm 0.1.0" src="https://img.shields.io/badge/s%C3%BCr%C3%BCm-0.1.0-1E4FD8">
+  <img alt="Sürüm 0.1.1" src="https://img.shields.io/badge/s%C3%BCr%C3%BCm-0.1.1-1E4FD8">
   <img alt="Rust" src="https://img.shields.io/badge/Rust-1.95%2B-0E1B3D?logo=rust&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React-TypeScript-1E4FD8?logo=react&logoColor=white">
   <img alt="SQLite" src="https://img.shields.io/badge/SQLite-g%C3%B6m%C3%BCl%C3%BC-0E1B3D?logo=sqlite&logoColor=white">
   <img alt="Lisans: AGPL-3.0" src="https://img.shields.io/badge/lisans-AGPL--3.0-0E1B3D">
-  <img alt="Sızma testi" src="https://img.shields.io/badge/s%C4%B1zma%20testi-471%2F471-2E7D32">
+  <img alt="Sızma testi" src="https://img.shields.io/badge/s%C4%B1zma%20testi-492%2F492-2E7D32">
 </p>
 
 <p align="center">
@@ -47,7 +47,7 @@ servisi yoktur, sunucu ve arayüz tek bir ikili dosyadadır. Arayüz telefonda v
 - Projeler, iş durumları (etüt → iskân), zorunlu ve seçmeli belge ağacı, ek dosyalar
 - Proje ekranında yerinde düzenleme: fotoğraf, adres, pafta, ada, parsel, notlar
 - Arsa sahipleri ve vekiller; hisse toplamının 1/1 olması denetlenir
-- Müellif ve müteahhit kayıtları, proje başına meslek bazlı müellif ataması
+- Müellif, müteahhit ve yapı denetim firması kayıtları; proje başına meslek bazlı müellif ataması, YİBF no ve yapı denetim
 - Projeye kişisel not: yalnızca yazan görür, kendiliğinden kaydedilir
 
 **Ekip**
@@ -137,8 +137,8 @@ dosyapı kişisel veri (TC kimlik numarası, telefon, adres) tuttuğu için güv
 - Güncellemeler Ed25519 imzalı; sürüm geri alma saldırısı engellenir
 - Yedekler kimlik doğrulamalı şifreli (AES-256-GCM): tek bayt değişikliği, kesilme ya da başka anahtarla üretilmiş yedek
   geri yüklemeden önce yakalanır
-- CI her değişiklikte gerçek bir sunucuya karşı **461 saldırı senaryosu** koşar (yetki aşımı, IDOR, enjeksiyon, CSRF,
-  yol geçişi, yedek kurcalama…); sürüm derlemesi gerçek Argon2id ile 471 senaryodan geçer
+- CI her değişiklikte gerçek bir sunucuya karşı **482 saldırı senaryosu** koşar (yetki aşımı, IDOR, enjeksiyon, CSRF,
+  yol geçişi, yedek kurcalama…); sürüm derlemesi gerçek Argon2id ile 492 senaryodan geçer
 
 Tehdit modeli, kapsam dışı kalanlar ve açık bildirimi: [SECURITY.md](SECURITY.md) · Test raporu: [docs/SIZMA-TESTI.md](docs/SIZMA-TESTI.md).
 Testler yazılımı yazan tarafındır; canlıya almadan önce bağımsız bir sızma testi önerilir.
@@ -194,7 +194,7 @@ Word-like template editor that fills documents from project data and exports tex
 
 It ships as a single Rust binary with the React UI and SQLite embedded. One command installs it with Docker and
 automatic HTTPS. Personal data is encrypted at field level (AES-256-GCM), updates are Ed25519-signed, and CI runs
-461 attack scenarios against a live server on every change (471 for the release build). Full backups (database and
+482 attack scenarios against a live server on every change (492 for the release build). Full backups (database and
 files) are a single encrypted, authenticated file that is verified before restore. The UI is available in Turkish and English.
 See [docs/KURULUM.md](docs/KURULUM.md) for installation and [SECURITY.md](SECURITY.md) for the threat model.
 Licensed under the [GNU AGPL-3.0](LICENSE).

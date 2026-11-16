@@ -94,6 +94,7 @@ pub trait ProjectRepo: Send + Sync {
     async fn delete(&self, id: &str) -> AppResult<()>;
     async fn set_authors(&self, id: &str, assignments: &[AuthorAssignment]) -> AppResult<()>;
     async fn uses_contractor(&self, contractor_id: &str) -> AppResult<bool>;
+    async fn uses_inspection(&self, inspection_id: &str) -> AppResult<bool>;
     /// Fotoğraf türünü ve zamanını yazar; boş tür fotoğrafın kaldırıldığını belirtir.
     async fn set_photo(&self, id: &str, mime: &str, at: Timestamp) -> AppResult<()>;
 }
@@ -113,6 +114,15 @@ pub trait ContractorRepo: Send + Sync {
     async fn get(&self, id: &str) -> AppResult<Option<Contractor>>;
     async fn insert(&self, contractor: &Contractor) -> AppResult<()>;
     async fn update(&self, contractor: &Contractor) -> AppResult<()>;
+    async fn delete(&self, id: &str) -> AppResult<()>;
+}
+
+#[async_trait]
+pub trait InspectionRepo: Send + Sync {
+    async fn list(&self) -> AppResult<Vec<Inspection>>;
+    async fn get(&self, id: &str) -> AppResult<Option<Inspection>>;
+    async fn insert(&self, inspection: &Inspection) -> AppResult<()>;
+    async fn update(&self, inspection: &Inspection) -> AppResult<()>;
     async fn delete(&self, id: &str) -> AppResult<()>;
 }
 

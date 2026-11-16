@@ -60,6 +60,7 @@ export function mapBootstrap(data: any) {
     projects: data.projects.map(mapProject),
     authors: data.authors,
     contractors: data.contractors,
+    inspections: data.inspections || [],
     tasks: data.tasks,
     todos: data.todos,
     pendings: data.pendings.map((p: any) => ({ ...p, when: fmtStamp(p.when) })),
@@ -98,7 +99,7 @@ export function emptyDomain() {
     palette: { pri: "#1E4FD8" },
     domains: [], domainLock: false, domainConflicts: [],
     roles: [], users: [], docTypes: [], professions: [], profRequired: {},
-    projects: [], authors: [], contractors: [], tasks: [], todos: [], pendings: [], history: [], templates: [],
+    projects: [], authors: [], contractors: [], inspections: [], tasks: [], todos: [], pendings: [], history: [], templates: [],
     system: { version: "", channel: "stable" },
   };
 }
@@ -109,12 +110,16 @@ export function toInput(entity: string, payload: any) {
   if (entity === "project") {
     return {
       ...pick(payload, ["name", "contractorId", "ada", "parsel", "pafta", "mahalle", "street", "status", "note"]),
+      yibf: payload.yibf || "", inspectionId: payload.inspectionId || "",
       owners: (payload.owners || []).map((o: any) => pick(o, ["id", "name", "tc", "phone", "address", "share"])),
       proxy: pick(payload.proxy || {}, ["name", "tc", "phone", "address"]),
     };
   }
   if (entity === "author") return pick(payload, ["tc", "first", "last", "phone", "company", "jobs", "sicil", "address"]);
-  return pick(payload, ["title", "owner", "licence", "rank", "address"]);
+  if (entity === "inspection") {
+    return { name: payload.name || "", phone: payload.phone || "", inspectors: (payload.inspectors || []).map((x: any) => pick(x, ["name", "tc"])) };
+  }
+  return { ...pick(payload, ["title", "owner", "licence", "rank", "address"]), ownerTc: payload.ownerTc || "" };
 }
 
 export function tplPayload(t: any) {

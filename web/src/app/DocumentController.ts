@@ -76,17 +76,20 @@ export class DocumentController extends EditorController {
     put("genel", { tarih: pad(now.getDate()) + "." + pad(now.getMonth() + 1) + "." + now.getFullYear(), tarihUzun: now.toLocaleDateString(LOC(), { day: "numeric", month: "long", year: "numeric" }), sirket: s.company.name, belgeNo: "BLG-" + now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + "-" + String(ref.id || "0").toUpperCase().slice(0, 4) });
     if (project) put("proje", {
       adi: project.name, ada: project.ada, parsel: project.parsel, pafta: project.pafta || "", mahalle: project.mahalle || "", cadde: project.street || "",
-      adres: [project.mahalle, project.street].filter(Boolean).join(", "), durum: STATUS_LABEL(project.status || (project.done ? "iskan" : "uygulama")),
+      adres: [project.mahalle, project.street].filter(Boolean).join(", "), yibf: project.yibf || "", durum: STATUS_LABEL(project.status || (project.done ? "iskan" : "uygulama")),
       belgeDurumu: s.docTypes.map(dt => dt.name + ": " + ((project.docs || {})[dt.id] ? tx("var") : dt.required ? tx("EKSİK") : "—")).join(", "), not: project.note || "",
     });
-    if (contractor) put("muteahhit", { unvan: contractor.title || "", yetkili: contractor.owner || "", yetkiNo: contractor.licence || "", sinif: contractor.rank || "", adres: contractor.address || "" });
+    const firm = project ? ((s.inspections || []).find(x => x.id === project.inspectionId) || null) : null;
+    put("yapiDenetim", { firma: firm ? firm.name : ((project && project.inspection) || ""), telefon: (firm && firm.phone) || "", yibf: (project && project.yibf) || "" });
+    if (contractor) put("muteahhit", { unvan: contractor.title || "", yetkili: contractor.owner || "", yetkiliTc: contractor.ownerTc || "", yetkiNo: contractor.licence || "", sinif: contractor.rank || "", adres: contractor.address || "" });
     put("mimar", au(mimar)); put("muellif", au(authors[0]));
     const o0 = owners[0] || {};
     put("arsaSahibi", { ad: o0.name || "", tc: o0.tc || "", telefon: o0.phone || "", adres: o0.address || "", hisse: o0.share || "" });
     put("vekil", { ad: proxy.name || "", tc: proxy.tc || "", telefon: proxy.phone || "", adres: proxy.address || "" });
     return { brand: s.palette && s.palette.pri, vals: v, lists: {
       muellifler: authors.map((a, i) => ({ sira: i + 1, ...au(a) })),
-      muteahhitler: contractors.map((x, i) => ({ sira: i + 1, unvan: x.title || "", yetkili: x.owner || "", yetkiNo: x.licence || "", sinif: x.rank || "", adres: x.address || "" })),
+      denetciler: (firm ? (firm.inspectors || []) : []).map((x, i) => ({ sira: i + 1, ad: x.name || "", tc: x.tc || "" })),
+      muteahhitler: contractors.map((x, i) => ({ sira: i + 1, unvan: x.title || "", yetkili: x.owner || "", yetkiliTc: x.ownerTc || "", yetkiNo: x.licence || "", sinif: x.rank || "", adres: x.address || "" })),
       arsaSahipleri: owners.map((o, i) => ({ sira: i + 1, ad: o.name || "", tc: o.tc || "", telefon: o.phone || "", adres: o.address || "", hisse: o.share || "", imza: "" })),
     } };
   }

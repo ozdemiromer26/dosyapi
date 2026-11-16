@@ -10,7 +10,7 @@ export function buildRecords(c: Ctx): () => Vals {
   const { canWriteRecords, check, s } = c; /*TOP*/
     const projAuthorIds = s.projFilter ? ((s.projects.find(p => p.id === s.projFilter) || {}).authorIds || []) : null;
     const filteredAuthors = s.authors.filter(a => !projAuthorIds || projAuthorIds.indexOf(a.id) > -1);
-    const lockedRecords = new Set(s.pendings.filter(p => (p.kind === "update" || p.kind === "delete") && (p.entity === "author" || p.entity === "contractor")).map(p => p.payload.id));
+    const lockedRecords = new Set(s.pendings.filter(p => (p.kind === "update" || p.kind === "delete") && (p.entity === "author" || p.entity === "contractor" || p.entity === "inspection")).map(p => p.payload.id));
     const authorsList = filteredAuthors.map(a => {
       const on = s.selAuthors.indexOf(a.id) > -1;
       const pr = s.projects.filter(p => (p.authorIds || []).indexOf(a.id) > -1);
@@ -42,15 +42,30 @@ export function buildRecords(c: Ctx): () => Vals {
         onDelete: () => app.setState({ sheet: { type: "confirm", action: "delete", entity: "contractor", obj: x } }),
       };
     });
-    Object.assign(c, { projAuthorIds, filteredAuthors, authorsList, filteredContractors, contractorsList });
+    // Yapı denetim firmaları: seçim ve belge yok; proje süzgeci projenin firmasını gösterir.
+    const projInspectionId = s.projFilter ? ((s.projects.find(p => p.id === s.projFilter) || {}).inspectionId || "") : null;
+    const filteredInspections = (s.inspections || []).filter(x => projInspectionId === null || x.id === projInspectionId);
+    const inspectionsList = filteredInspections.map(x => ({
+      ...x, canWrite: canWriteRecords && !lockedRecords.has(x.id),
+      onEdit: () => { app.fd = {}; app.setState({ sheet: { type: "inspection" }, draft: { ...x, inspectors: (x.inspectors || []).map(p => ({ ...p })) } }); },
+      onDelete: () => app.setState({ sheet: { type: "confirm", action: "delete", entity: "inspection", obj: x } }),
+    }));
+    Object.assign(c, { projAuthorIds, filteredAuthors, authorsList, filteredContractors, contractorsList, filteredInspections, inspectionsList });
   return () => {
     const { s, tabStyle, chip } = c; /*LATE*/
-    const A = s.recTab !== "contractors";
+    const I = s.recTab === "inspections";
+    const A = !I && s.recTab !== "contractors";
     const narrow = (c.contentW || 0) < 640;
     const view = s.recView === "list" ? "list" : "card";
     // +90 öneki: telefon 0 ile başlıyorsa uluslararası biçimde gösterilir.
     const tel = (p) => String(p || "").replace(/^0/, "+90 ");
-    const rows = A
+    const rows = I
+      ? inspectionsList.map(x => ({
+          id: x.id, title: x.name, sub: (x.inspectors || []).length ? (x.inspectors || []).length + tx(" denetçi") : tx("Denetçi eklenmedi"), on: false,
+          k1: tx("Telefon"), v1: tel(x.phone) || "—", k2: tx("Denetçiler"), k2s: tx("Denetçi"), v2: (x.inspectors || []).map(p => p.name).join(", ") || "—",
+          onEdit: x.onEdit, onDelete: x.onDelete, canWrite: x.canWrite,
+        }))
+      : A
       ? authorsList.map(a => ({
           id: a.id, title: a.fullName, sub: [(a.jobs || []).join(", "), a.company].filter(Boolean).join(" · "), on: s.selAuthors.indexOf(a.id) > -1,
           k1: tx("TC"), v1: a.tc || "—", k2: tx("Telefon"), k2s: tx("Tel"), v2: tel(a.phone) || "—",
@@ -65,19 +80,21 @@ export function buildRecords(c: Ctx): () => Vals {
     const pool = A ? filteredAuthors : filteredContractors;
     const allOn = pool.length > 0 && pool.every(x => selIds.indexOf(x.id) > -1);
     return {
-      isContractorsTab: !A,
-      recAuthStyle: tabStyle(A), recContStyle: tabStyle(!A),
+      isContractorsTab: !A && !I,
+      recSelectable: !I,
+      recAuthStyle: tabStyle(A), recContStyle: tabStyle(!A && !I), recInspStyle: tabStyle(I),
       recAuthors: () => app.setState({ recTab: "authors" }), recContractors: () => app.setState({ recTab: "contractors" }),
+      recInspections: () => app.setState({ recTab: "inspections" }),
       recRows: rows, recNoRows: rows.length === 0, projFilterValue: s.projFilter || "",
       recNarrow: narrow, recIsCard: view === "card", recIsList: view === "list",
       recCardStyle: chip(view === "card").replace("height:32px", "height:40px"),
       recListStyle: chip(view === "list").replace("height:32px", "height:40px"),
       recSetCard: () => app.setState({ recView: "card" }), recSetList: () => app.setState({ recView: "list" }),
-      recFilterAll: A ? tx("Tüm müellifler") : tx("Tüm müteahhitler"),
+      recFilterAll: I ? tx("Tüm yapı denetim firmaları") : A ? tx("Tüm müellifler") : tx("Tüm müteahhitler"),
       recCols: "28px minmax(0,1.6fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.3fr) auto",
-      recHeads: A ? [tx("AD SOYAD"), tx("MESLEK · ŞİRKET"), tx("TC"), tx("TELEFON")] : [tx("FİRMA"), tx("YETKİLİ · SINIF"), tx("YETKİ NO"), tx("ADRES")],
+      recHeads: I ? [tx("FİRMA"), tx("DENETÇİ SAYISI"), tx("TELEFON"), tx("DENETÇİLER")] : A ? [tx("AD SOYAD"), tx("MESLEK · ŞİRKET"), tx("TC"), tx("TELEFON")] : [tx("FİRMA"), tx("YETKİLİ · SINIF"), tx("YETKİ NO"), tx("ADRES")],
       recDocLabel: (A ? tx("Seçili müelliflerle belge oluştur") : tx("Seçili müteahhitlerle belge oluştur")) + " (" + selIds.length + ")",
-      recAddLabel: A ? tx("+ Müellif Ekle") : tx("+ Müteahhit Ekle"),
+      recAddLabel: I ? tx("+ Yapı Denetim Ekle") : A ? tx("+ Müellif Ekle") : tx("+ Müteahhit Ekle"),
       selectAllLabel: allOn ? tx("Seçimi temizle") : tx("Tümünü seç"),
       selectAll: () => A
         ? app.setState({ selAuthors: allOn ? [] : filteredAuthors.map(a => a.id) })
@@ -92,10 +109,12 @@ export function buildRecords(c: Ctx): () => Vals {
         if (!ids.length) return app.toast(tx("Belge için müteahhit seçin."));
         app.openGen("contractor", { ids });
       },
-      addRecord: () => { app.fd = {}; app.setState({ sheet: { type: A ? "author" : "contractor" }, draft: {} }); },
+      addRecord: () => { app.fd = {}; app.setState({ sheet: { type: I ? "inspection" : A ? "author" : "contractor" }, draft: I ? { inspectors: [] } : {} }); },
       professionOptions: s.professions.map(p => ({ name: p })),
       contractorOptions: s.contractors.map(x => ({ id: x.id, title: x.title })),
+      inspectionOptions: (s.inspections || []).map(x => ({ id: x.id, name: x.name })),
       canAddContractor: canWriteRecords,
+      onPrInspection: (e) => { if (e.target.value === ADD_OPTION) { e.target.value = ""; app.goAddRecord("inspection"); } else app.fd[e.target.name] = e.target.value; },
       onPrContractor: (e) => { if (e.target.value === ADD_OPTION) { e.target.value = ""; app.goAddRecord("contractor"); } else app.fd[e.target.name] = e.target.value; },
     };
   };

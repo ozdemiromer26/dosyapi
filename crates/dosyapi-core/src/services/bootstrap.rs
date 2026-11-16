@@ -94,6 +94,7 @@ pub struct Bootstrap {
     pub projects: Vec<ProjectView>,
     pub authors: Vec<Author>,
     pub contractors: Vec<Contractor>,
+    pub inspections: Vec<Inspection>,
     pub tasks: Vec<Task>,
     pub todos: Vec<Todo>,
     pub pendings: Vec<PendingView>,
@@ -124,6 +125,16 @@ fn mask_project(project: &mut Project) {
     project.proxy.address = String::new();
 }
 
+fn mask_contractor(contractor: &mut Contractor) {
+    contractor.owner_tc = mask(&contractor.owner_tc);
+}
+
+fn mask_inspection(inspection: &mut Inspection) {
+    for person in &mut inspection.inspectors {
+        person.tc = mask(&person.tc);
+    }
+}
+
 fn mask_author(author: &mut Author) {
     author.tc = mask(&author.tc);
     author.phone = mask(&author.phone);
@@ -151,6 +162,7 @@ pub struct BootstrapService {
     pub projects: Arc<dyn ProjectRepo>,
     pub authors: Arc<dyn AuthorRepo>,
     pub contractors: Arc<dyn ContractorRepo>,
+    pub inspections: Arc<dyn InspectionRepo>,
     pub tasks: Arc<dyn TaskRepo>,
     pub todos: Arc<dyn TodoRepo>,
     pub pendings: Arc<dyn PendingRepo>,
@@ -172,6 +184,9 @@ fn target_id(payload: &PendingPayload) -> Id {
         | ContractorCreate { id, .. }
         | ContractorUpdate { id, .. }
         | ContractorDelete { id }
+        | InspectionCreate { id, .. }
+        | InspectionUpdate { id, .. }
+        | InspectionDelete { id }
         | FileAdd { id, .. }
         | FileRemove { id, .. }
         | ProjectAuthor { id, .. }
@@ -232,11 +247,21 @@ impl BootstrapService {
         if !actor.sees_record_pii() {
             authors.iter_mut().for_each(mask_author);
         }
-        let contractors = if actor.record_mode().can_read() || actor.project_mode().can_read() {
+        let records_visible = actor.record_mode().can_read() || actor.project_mode().can_read();
+        let mut contractors = if records_visible {
             self.contractors.list().await?
         } else {
             vec![]
         };
+        let mut inspections = if records_visible {
+            self.inspections.list().await?
+        } else {
+            vec![]
+        };
+        if !actor.sees_record_pii() {
+            contractors.iter_mut().for_each(mask_contractor);
+            inspections.iter_mut().for_each(mask_inspection);
+        }
         let pendings = self
             .pendings
             .list()
@@ -309,6 +334,7 @@ impl BootstrapService {
             doc_types,
             authors,
             contractors,
+            inspections,
             tasks,
             todos: self.todos.list_for(&actor.user_id).await?,
             pendings,

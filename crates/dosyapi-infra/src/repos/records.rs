@@ -15,10 +15,17 @@ struct People {
     proxy: Proxy,
 }
 
-const PROJECT_SELECT_ALL: &str = "SELECT p.*, c.title AS contractor_title FROM projects p
-     JOIN contractors c ON c.id = p.contractor_id ORDER BY p.created_at DESC";
-const PROJECT_SELECT_ONE: &str = "SELECT p.*, c.title AS contractor_title FROM projects p
-     JOIN contractors c ON c.id = p.contractor_id WHERE p.id = ?";
+const PROJECT_SELECT_ALL: &str = "SELECT p.*, c.title AS contractor_title, i.name AS inspection_name
+     FROM projects p JOIN contractors c ON c.id = p.contractor_id
+     LEFT JOIN inspections i ON i.id = p.inspection_id ORDER BY p.created_at DESC";
+const PROJECT_SELECT_ONE: &str = "SELECT p.*, c.title AS contractor_title, i.name AS inspection_name
+     FROM projects p JOIN contractors c ON c.id = p.contractor_id
+     LEFT JOIN inspections i ON i.id = p.inspection_id WHERE p.id = ?";
+
+/// Projede yapı denetim firması seçilmemişse sütun NULL'dır.
+fn optional_id(id: &str) -> Option<&str> {
+    (!id.is_empty()).then_some(id)
+}
 
 fn people_ctx(id: &str) -> String {
     format!("projects.people:{id}")
@@ -50,6 +57,15 @@ impl Db {
             name: r.try_get("name").map_err(db_err)?,
             contractor_id: r.try_get("contractor_id").map_err(db_err)?,
             contractor: r.try_get("contractor_title").map_err(db_err)?,
+            yibf: r.try_get("yibf").map_err(db_err)?,
+            inspection_id: r
+                .try_get::<Option<String>, _>("inspection_id")
+                .map_err(db_err)?
+                .unwrap_or_default(),
+            inspection: r
+                .try_get::<Option<String>, _>("inspection_name")
+                .map_err(db_err)?
+                .unwrap_or_default(),
             ada: r.try_get("ada").map_err(db_err)?,
             parsel: r.try_get("parsel").map_err(db_err)?,
             pafta: r.try_get("pafta").map_err(db_err)?,
@@ -158,8 +174,8 @@ impl ProjectRepo for Db {
 
     async fn insert(&self, p: &Project) -> AppResult<()> {
         sqlx::query(
-            "INSERT INTO projects (id, name, contractor_id, ada, parsel, pafta, mahalle, street, status, done, note, people_enc, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO projects (id, name, contractor_id, ada, parsel, pafta, mahalle, street, status, done, note, people_enc, created_at, updated_at, yibf, inspection_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&p.id)
         .bind(&p.name)
@@ -175,6 +191,8 @@ impl ProjectRepo for Db {
         .bind(self.seal_people(p)?)
         .bind(p.created_at)
         .bind(p.updated_at)
+        .bind(&p.yibf)
+        .bind(optional_id(&p.inspection_id))
         .execute(&self.pool)
         .await
         .map_err(db_err)?;
@@ -184,7 +202,7 @@ impl ProjectRepo for Db {
     async fn update(&self, p: &Project) -> AppResult<()> {
         sqlx::query(
             "UPDATE projects SET name = ?, contractor_id = ?, ada = ?, parsel = ?, pafta = ?, mahalle = ?, street = ?, status = ?,
-             done = ?, note = ?, people_enc = ?, updated_at = ? WHERE id = ?",
+             done = ?, note = ?, people_enc = ?, updated_at = ?, yibf = ?, inspection_id = ? WHERE id = ?",
         )
         .bind(&p.name)
         .bind(&p.contractor_id)
@@ -198,6 +216,8 @@ impl ProjectRepo for Db {
         .bind(&p.note)
         .bind(self.seal_people(p)?)
         .bind(p.updated_at)
+        .bind(&p.yibf)
+        .bind(optional_id(&p.inspection_id))
         .bind(&p.id)
         .execute(&self.pool)
         .await
@@ -251,6 +271,16 @@ impl ProjectRepo for Db {
         let count: i64 =
             sqlx::query_scalar("SELECT COUNT(*) FROM projects WHERE contractor_id = ?")
                 .bind(contractor_id)
+                .fetch_one(&self.pool)
+                .await
+                .map_err(db_err)?;
+        Ok(count > 0)
+    }
+
+    async fn uses_inspection(&self, inspection_id: &str) -> AppResult<bool> {
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM projects WHERE inspection_id = ?")
+                .bind(inspection_id)
                 .fetch_one(&self.pool)
                 .await
                 .map_err(db_err)?;
@@ -327,15 +357,47 @@ impl AuthorRepo for Db {
     }
 }
 
-fn contractor_from(r: &SqliteRow) -> AppResult<Contractor> {
-    Ok(Contractor {
-        id: r.try_get("id").map_err(db_err)?,
-        title: r.try_get("title").map_err(db_err)?,
-        owner: r.try_get("owner").map_err(db_err)?,
-        licence: r.try_get("licence").map_err(db_err)?,
-        rank: r.try_get("rank").map_err(db_err)?,
-        address: r.try_get("address").map_err(db_err)?,
-    })
+fn contractor_ctx(id: &str) -> String {
+    format!("contractors.owner_tc:{id}")
+}
+
+fn inspection_ctx(id: &str) -> String {
+    format!("inspections.people:{id}")
+}
+
+impl Db {
+    fn contractor_from(&self, r: &SqliteRow) -> AppResult<Contractor> {
+        let id: String = r.try_get("id").map_err(db_err)?;
+        let owner_tc: Option<Vec<u8>> = r.try_get("owner_tc_enc").map_err(db_err)?;
+        Ok(Contractor {
+            title: r.try_get("title").map_err(db_err)?,
+            owner: r.try_get("owner").map_err(db_err)?,
+            owner_tc: self
+                .cipher
+                .decrypt_text(&contractor_ctx(&id), owner_tc.as_deref())?,
+            licence: r.try_get("licence").map_err(db_err)?,
+            rank: r.try_get("rank").map_err(db_err)?,
+            address: r.try_get("address").map_err(db_err)?,
+            id,
+        })
+    }
+
+    fn inspection_from(&self, r: &SqliteRow) -> AppResult<Inspection> {
+        let id: String = r.try_get("id").map_err(db_err)?;
+        let blob: Vec<u8> = r.try_get("people_enc").map_err(db_err)?;
+        let plain = self.cipher.decrypt(&inspection_ctx(&id), &blob)?;
+        Ok(Inspection {
+            name: r.try_get("name").map_err(db_err)?,
+            phone: r.try_get("phone").map_err(db_err)?,
+            inspectors: serde_json::from_slice(&plain).map_err(AppError::internal)?,
+            id,
+        })
+    }
+
+    fn seal_inspectors(&self, i: &Inspection) -> AppResult<Vec<u8>> {
+        let plain = serde_json::to_vec(&i.inspectors).map_err(AppError::internal)?;
+        self.cipher.encrypt(&inspection_ctx(&i.id), &plain)
+    }
 }
 
 #[async_trait]
@@ -345,7 +407,7 @@ impl ContractorRepo for Db {
             .fetch_all(&self.pool)
             .await
             .map_err(db_err)?;
-        rows.iter().map(contractor_from).collect()
+        rows.iter().map(|r| self.contractor_from(r)).collect()
     }
 
     async fn get(&self, id: &str) -> AppResult<Option<Contractor>> {
@@ -354,14 +416,15 @@ impl ContractorRepo for Db {
             .fetch_optional(&self.pool)
             .await
             .map_err(db_err)?;
-        row.as_ref().map(contractor_from).transpose()
+        row.as_ref().map(|r| self.contractor_from(r)).transpose()
     }
 
     async fn insert(&self, c: &Contractor) -> AppResult<()> {
-        sqlx::query("INSERT INTO contractors (id, title, owner, licence, rank, address) VALUES (?, ?, ?, ?, ?, ?)")
+        sqlx::query("INSERT INTO contractors (id, title, owner, owner_tc_enc, licence, rank, address) VALUES (?, ?, ?, ?, ?, ?, ?)")
             .bind(&c.id)
             .bind(&c.title)
             .bind(&c.owner)
+            .bind(self.cipher.encrypt_text(&contractor_ctx(&c.id), &c.owner_tc)?)
             .bind(&c.licence)
             .bind(&c.rank)
             .bind(&c.address)
@@ -372,9 +435,10 @@ impl ContractorRepo for Db {
     }
 
     async fn update(&self, c: &Contractor) -> AppResult<()> {
-        sqlx::query("UPDATE contractors SET title = ?, owner = ?, licence = ?, rank = ?, address = ? WHERE id = ?")
+        sqlx::query("UPDATE contractors SET title = ?, owner = ?, owner_tc_enc = ?, licence = ?, rank = ?, address = ? WHERE id = ?")
             .bind(&c.title)
             .bind(&c.owner)
+            .bind(self.cipher.encrypt_text(&contractor_ctx(&c.id), &c.owner_tc)?)
             .bind(&c.licence)
             .bind(&c.rank)
             .bind(&c.address)
@@ -387,6 +451,59 @@ impl ContractorRepo for Db {
 
     async fn delete(&self, id: &str) -> AppResult<()> {
         sqlx::query("DELETE FROM contractors WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(db_err)?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl InspectionRepo for Db {
+    async fn list(&self) -> AppResult<Vec<Inspection>> {
+        let rows = sqlx::query("SELECT * FROM inspections ORDER BY name")
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db_err)?;
+        rows.iter().map(|r| self.inspection_from(r)).collect()
+    }
+
+    async fn get(&self, id: &str) -> AppResult<Option<Inspection>> {
+        let row = sqlx::query("SELECT * FROM inspections WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db_err)?;
+        row.as_ref().map(|r| self.inspection_from(r)).transpose()
+    }
+
+    async fn insert(&self, i: &Inspection) -> AppResult<()> {
+        sqlx::query("INSERT INTO inspections (id, name, phone, people_enc) VALUES (?, ?, ?, ?)")
+            .bind(&i.id)
+            .bind(&i.name)
+            .bind(&i.phone)
+            .bind(self.seal_inspectors(i)?)
+            .execute(&self.pool)
+            .await
+            .map_err(db_err)?;
+        Ok(())
+    }
+
+    async fn update(&self, i: &Inspection) -> AppResult<()> {
+        sqlx::query("UPDATE inspections SET name = ?, phone = ?, people_enc = ? WHERE id = ?")
+            .bind(&i.name)
+            .bind(&i.phone)
+            .bind(self.seal_inspectors(i)?)
+            .bind(&i.id)
+            .execute(&self.pool)
+            .await
+            .map_err(db_err)?;
+        Ok(())
+    }
+
+    async fn delete(&self, id: &str) -> AppResult<()> {
+        sqlx::query("DELETE FROM inspections WHERE id = ?")
             .bind(id)
             .execute(&self.pool)
             .await

@@ -10,7 +10,7 @@ export function buildShell(c: Ctx): () => Vals {
   const app = c.app;
   const { me, navStyle, pendings, pm, rm, s } = c; /*TOP*/
     const sh = s.sheet || {};
-    const sheetTitles = { people: tx("Arsa sahipleri & vekiller"), project: s.draft && s.draft.id ? tx("Projeyi Düzenle") : tx("Yeni Proje"), author: s.draft && s.draft.id ? tx("Müellifi Düzenle") : tx("Yeni Müellif"), contractor: s.draft && s.draft.id ? tx("Müteahhidi Düzenle") : tx("Yeni Müteahhit"), doc: sh.title, confirm: tx("Onay gerekiyor"), menu: tx("Menü"), mail: tx("Tek kullanımlık bağlantı"), notice: tx("Aydınlatma metni"), tplLeave: tx("Kaydedilmemiş değişiklikler") };
+    const sheetTitles = { people: tx("Arsa sahipleri & vekiller"), project: s.draft && s.draft.id ? tx("Projeyi Düzenle") : tx("Yeni Proje"), author: s.draft && s.draft.id ? tx("Müellifi Düzenle") : tx("Yeni Müellif"), contractor: s.draft && s.draft.id ? tx("Müteahhidi Düzenle") : tx("Yeni Müteahhit"), inspection: s.draft && s.draft.id ? tx("Yapı Denetimi Düzenle") : tx("Yeni Yapı Denetim Firması"), doc: sh.title, confirm: tx("Onay gerekiyor"), menu: tx("Menü"), mail: tx("Tek kullanımlık bağlantı"), notice: tx("Aydınlatma metni"), tplLeave: tx("Kaydedilmemiş değişiklikler") };
 
     const isDesktop = s.vw >= 880;
     const contentW = Math.min(s.vw - (isDesktop ? 240 : 0), 1440) - 32;
@@ -169,7 +169,11 @@ export function buildShell(c: Ctx): () => Vals {
           statCard(tx("Toplam proje"), s.projects.length, goList(["all"])),
           statCard(tx("Devam eden"), s.projects.filter(p => !p.done).length, goList(["active"])),
           statCard(tx("Tamamlanan"), s.projects.filter(p => p.done).length, goList(["done"])),
-          statCard(tx("Açık görev"), s.tasks.filter(t => !t.done).length, () => app.setState({ tab: "tasks" })),
+          // Bana atanan ile atadığım ayrı sayılır; kendime atadığım görev yalnızca "bana atanan"dadır.
+          statCard(tx("Bana atanan görev"), s.tasks.filter(t => !t.done && t.assignee === s.session).length, () => app.setState({ tab: "tasks" })),
+          ...(app.perm("tasks") || s.tasks.some(t => t.by === s.session && t.assignee !== s.session)
+            ? [statCard(tx("Atadığım görev"), s.tasks.filter(t => !t.done && t.by === s.session && t.assignee !== s.session).length, () => app.setState({ tab: "tasks" }))]
+            : []),
         ];
       })(),
       recentProjects: allProjects.slice(0, 3),

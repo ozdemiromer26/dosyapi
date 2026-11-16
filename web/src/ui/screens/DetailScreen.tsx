@@ -66,6 +66,15 @@ function InfoCard({ v }: { v: Vals }) {
                 {i.canAddContractor ? <><option disabled value="">──────────</option><option value="__add__">{v.T.muteahhitEkleArti}</option></> : null}
               </select>
             </div>
+            <div style={css(i.spanThird)}>{label(v.T.yibfNo, "inYibf")}{input("inYibf", i.form.yibf)}</div>
+            <div style={css(i.wide ? "grid-column:span 4;min-width:0" : "grid-column:span 2;min-width:0")}>
+              {label(v.T.yapiDenetimFirmasi, "inInspection")}
+              <select id="inInspection" name="inInspection" onChange={i.onInspection} defaultValue={i.form.inspectionId || ""} style={css("width:100%;height:40px;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:0 10px;font-size:14px;font-weight:600;color:var(--ink)")}>
+                <option value="">{v.T.yapiDenetimSec}</option>
+                {(i.inspectionOptions || []).map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                {i.canAddContractor ? <><option disabled value="">──────────</option><option value="__add__">{v.T.yapiDenetimEkleArti}</option></> : null}
+              </select>
+            </div>
             <div style={css(i.spanHalf)}>{label(v.T.mahalle, "inMahalle")}{input("inMahalle", i.form.mahalle)}</div>
             <div style={css(i.spanHalf)}>{label(v.T.caddeSokakVeKapi, "inStreet")}{input("inStreet", i.form.street)}</div>
             <div style={css(i.spanThird)}>{label(v.T.paftaNo, "inPafta")}{input("inPafta", i.form.pafta)}</div>
@@ -94,6 +103,20 @@ function InfoCard({ v }: { v: Vals }) {
                   <dd style={css(VALUE)}>{p.value}</dd>
                 </div>
               ))}
+            </div>
+            <div style={css(RULE + ";padding:12px 0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr)")}>
+              <div style={css("min-width:0;padding-right:14px")}>
+                <dt style={css(LABEL)}>{v.T.yibfNoUp}</dt>
+                <dd style={css(VALUE)}>{i.inspection.yibf}</dd>
+              </div>
+              <div style={css("min-width:0;padding:0 14px;border-left:1px solid var(--line2)")}>
+                <dt style={css(LABEL)}>{v.T.yapiDenetimUp}</dt>
+                <dd style={css(VALUE)}>{i.inspection.firm}</dd>
+                {i.inspection.phone ? <dd style={css(SUB)}>{i.inspection.phone}</dd> : null}
+                {(i.inspection.inspectors || []).map((p: any) => (
+                  <dd key={p.key} style={css(SUB)}>{p.name}{p.tc ? " · " + p.tc : ""}</dd>
+                ))}
+              </div>
             </div>
             <div style={css(RULE + ";padding-top:12px")}>
               <dt style={css(LABEL)}>{v.T.notlarUp}</dt>

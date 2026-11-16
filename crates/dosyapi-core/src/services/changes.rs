@@ -100,7 +100,9 @@ pub async fn ensure_unlocked(pendings: &dyn PendingRepo, id: &str) -> AppResult<
             | AuthorUpdate { id: target, .. }
             | AuthorDelete { id: target }
             | ContractorUpdate { id: target, .. }
-            | ContractorDelete { id: target } => target == id,
+            | ContractorDelete { id: target }
+            | InspectionUpdate { id: target, .. }
+            | InspectionDelete { id: target } => target == id,
             _ => false,
         });
     if locked {
@@ -134,6 +136,10 @@ pub fn field_labels(fields: &[String]) -> String {
         "address" => "Adres",
         "title" => "Unvan",
         "owner" => "Yetkili",
+        "ownerTc" => "Yetkili TC",
+        "yibf" => "YİBF no",
+        "inspectionId" => "Yapı denetim",
+        "inspectors" => "Denetçiler",
         "licence" => "Yetki belgesi",
         "rank" => "Sınıf",
         _ => "Diğer",
@@ -162,9 +168,19 @@ fn contractor_from(id: &str, input: ContractorInput) -> Contractor {
         id: id.to_string(),
         title: input.title,
         owner: input.owner,
+        owner_tc: input.owner_tc,
         licence: input.licence,
         rank: input.rank,
         address: input.address,
+    }
+}
+
+fn inspection_from(id: &str, input: InspectionInput) -> Inspection {
+    Inspection {
+        id: id.to_string(),
+        name: input.name,
+        phone: input.phone,
+        inspectors: input.inspectors,
     }
 }
 
@@ -280,6 +296,13 @@ pub fn normalize_project(input: &ProjectInput) -> AppResult<ProjectInput> {
             phone,
             address,
         },
+        yibf: validate::text(&input.yibf, "YİBF no", 32)?,
+        inspection_id: if input.inspection_id.trim().is_empty() {
+            String::new()
+        } else {
+            validate::uuid(&input.inspection_id)
+                .map_err(|_| AppError::validation("Yapı denetim firması bulunamadı."))?
+        },
     })
 }
 
@@ -320,9 +343,39 @@ pub fn normalize_contractor(input: &ContractorInput) -> AppResult<ContractorInpu
     Ok(ContractorInput {
         title: validate::required(&input.title, "Firma unvanı", 200)?,
         owner: validate::text(&input.owner, "Yetkili", 160)?,
+        owner_tc: validate::tax_id(&input.owner_tc)?,
         licence: validate::text(&input.licence, "Yetki belge no", 64)?,
         rank: validate::text(&input.rank, "Sınıf", 16)?,
         address: validate::text(&input.address, "Adres", 300)?,
+    })
+}
+
+/// Bir firmada en çok bu kadar denetçi tutulur.
+const MAX_INSPECTORS: usize = 50;
+
+pub fn normalize_inspection(input: &InspectionInput) -> AppResult<InspectionInput> {
+    if input.inspectors.len() > MAX_INSPECTORS {
+        return Err(AppError::validation(format!(
+            "Bir firmaya en çok {MAX_INSPECTORS} denetçi eklenebilir."
+        )));
+    }
+    let mut inspectors = Vec::with_capacity(input.inspectors.len());
+    for person in &input.inspectors {
+        let name = validate::text(&person.name, "Denetçi adı", 160)?;
+        let tc = validate::tax_id(&person.tc)?;
+        // Boş bırakılan satır kaydedilmez; TC'si olan satırın adı zorunludur.
+        if name.is_empty() && tc.is_empty() {
+            continue;
+        }
+        if name.is_empty() {
+            return Err(AppError::validation("Denetçinin adını girin."));
+        }
+        inspectors.push(Inspector { name, tc });
+    }
+    Ok(InspectionInput {
+        name: validate::required(&input.name, "Firma adı", 200)?,
+        phone: validate::phone(&input.phone)?,
+        inspectors,
     })
 }
 
@@ -331,6 +384,7 @@ pub struct ChangeApplier {
     pub projects: Arc<dyn ProjectRepo>,
     pub authors: Arc<dyn AuthorRepo>,
     pub contractors: Arc<dyn ContractorRepo>,
+    pub inspections: Arc<dyn InspectionRepo>,
     pub files: Arc<dyn FileRepo>,
     pub store: Arc<dyn FileStore>,
     pub clock: Arc<dyn Clock>,
@@ -341,7 +395,7 @@ impl ChangeApplier {
         id: &str,
         input: ProjectInput,
         existing: Option<&Project>,
-        title: String,
+        (title, inspection): (String, String),
         now: Timestamp,
     ) -> Project {
         Project {
@@ -349,6 +403,9 @@ impl ChangeApplier {
             name: input.name,
             contractor_id: input.contractor_id,
             contractor: title,
+            yibf: input.yibf,
+            inspection_id: input.inspection_id,
+            inspection,
             ada: input.ada,
             parsel: input.parsel,
             pafta: input.pafta,
@@ -371,6 +428,18 @@ impl ChangeApplier {
         match self.contractors.get(id).await? {
             Some(contractor) => Ok(contractor.title),
             None => Err(AppError::validation("Seçilen müteahhit bulunamadı.")),
+        }
+    }
+
+    /// Projeye yazılacak müteahhit unvanı ve yapı denetim firması adı; seçilenler var olmalı.
+    async fn titles(&self, input: &ProjectInput) -> AppResult<(String, String)> {
+        let contractor = self.contractor_title(&input.contractor_id).await?;
+        if input.inspection_id.is_empty() {
+            return Ok((contractor, String::new()));
+        }
+        match self.inspections.get(&input.inspection_id).await? {
+            Some(firm) => Ok((contractor, firm.name)),
+            None => Err(AppError::validation("Seçilen yapı denetim firması bulunamadı.")),
         }
     }
 
@@ -437,8 +506,8 @@ impl ChangeApplier {
             ProjectCreate { id, input } => {
                 let mut input = normalize_project(input)?;
                 check_shares(&mut input.owners)?;
-                let title = self.contractor_title(&input.contractor_id).await?;
-                let project = Self::build_project(id, input, None, title, self.clock.now());
+                let titles = self.titles(&input).await?;
+                let project = Self::build_project(id, input, None, titles, self.clock.now());
                 self.projects.insert(&project).await
             }
             ProjectUpdate { id, input, patch } => {
@@ -447,9 +516,9 @@ impl ChangeApplier {
                 if patch.fields.iter().any(|f| f == "owners") {
                     check_shares(&mut merged.owners)?;
                 }
-                let title = self.contractor_title(&merged.contractor_id).await?;
+                let titles = self.titles(&merged).await?;
                 let now = self.clock.now();
-                let project = Self::build_project(id, merged, Some(&current), title, now);
+                let project = Self::build_project(id, merged, Some(&current), titles, now);
                 self.projects.update(&project).await
             }
             ProjectDelete { id } => self.delete_project(id).await,
@@ -484,6 +553,25 @@ impl ChangeApplier {
                     ));
                 }
                 self.contractors.delete(id).await
+            }
+            InspectionCreate { id, input } => {
+                self.inspections
+                    .insert(&inspection_from(id, normalize_inspection(input)?))
+                    .await
+            }
+            InspectionUpdate { id, input, patch } => {
+                let current = self.inspections.get(id).await?.ok_or(AppError::NotFound)?;
+                let merged = merge(&current.input(), &normalize_inspection(input)?, patch)?;
+                self.inspections.update(&inspection_from(id, merged)).await
+            }
+            InspectionDelete { id } => {
+                self.inspections.get(id).await?.ok_or(AppError::NotFound)?;
+                if self.projects.uses_inspection(id).await? {
+                    return Err(AppError::conflict(
+                        "Bu yapı denetim firması projelerde kullanılıyor; önce projelerden kaldırın.",
+                    ));
+                }
+                self.inspections.delete(id).await
             }
             FileAdd {
                 file_id, replace, ..
@@ -580,6 +668,7 @@ mod tests {
         ContractorInput {
             title: title.into(),
             owner: owner.into(),
+            owner_tc: String::new(),
             licence: "1".into(),
             rank: "B".into(),
             address: "X".into(),
