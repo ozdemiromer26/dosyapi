@@ -1,0 +1,24 @@
+{
+  "product": "dosyapi",
+  "channel": "stable",
+  "version": "0.1.2",
+  "releasedAt": "2026-11-16",
+  "notes": "",
+  "minVersion": "0.0.0",
+  "artifacts": [
+    {
+      "os": "linux",
+      "arch": "aarch64",
+      "url": "https://github.com/ozdemiromer26/dosyapi/releases/download/v0.1.2/dosyapi-0.1.2-linux-aarch64",
+      "sha256": "549cf67e9599586a2eece1cf2a88bec77d95480071bb059b37d01e34939a7e45",
+      "size": 19105152
+    },
+    {
+      "os": "linux",
+      "arch": "x86_64",
+      "url": "https://github.com/ozdemiromer26/dosyapi/releases/download/v0.1.2/dosyapi-0.1.2-linux-x86_64",
+      "sha256": "8d2f6ca5af42864f9b675ee424d90284514f7d621e085d74ebdcc85afbceefcb",
+      "size": 21923608
+    }
+  ]
+}
