@@ -56,6 +56,9 @@ export class AppCore extends React.Component<any, any> {
     document.addEventListener("keydown", this._escH);
     this._unloadH = (e) => { if (this.state.tplDirty) { e.preventDefault(); e.returnValue = ""; } };
     window.addEventListener("beforeunload", this._unloadH);
+    // Adres çubuğuna #sistem yazılınca sayfa yenilenmez; panele buradan geçilir.
+    this._hashH = () => { if (window.location.hash.toLowerCase() === "#sistem" && this.state.mode !== "master") this.enterMaster(); };
+    window.addEventListener("hashchange", this._hashH);
     this.applySlots();
     this.scheduleDayTick();
     await this.start();
@@ -84,14 +87,16 @@ export class AppCore extends React.Component<any, any> {
     document.removeEventListener("mousedown", this._rbH);
     document.removeEventListener("keydown", this._escH);
     window.removeEventListener("beforeunload", this._unloadH);
+    window.removeEventListener("hashchange", this._hashH);
     clearTimeout(this._ht);
+    clearTimeout(this._gateT);
     clearTimeout(this._dayT);
     this.stopLive();
   }
 
   componentDidUpdate(_p, prev) {
-    // Canlı güncelleme yalnızca uygulama oturumunda açıktır (giriş, çıkış, oturum düşmesi).
-    if (prev.mode !== this.state.mode) this.state.mode === "app" ? this.startLive() : this.stopLive();
+    // Canlı güncelleme: uygulamada kullanıcı akışı, Sistem Paneli'nde (girişten sonra) panel akışı.
+    if (prev.mode !== this.state.mode || prev.masterAuthed !== this.state.masterAuthed) this.syncLive();
     if (prev.theme !== this.state.theme) this.applyTheme();
     if (prev.lang !== this.state.lang || prev.theme !== this.state.theme) this.savePreferences();
     this.applySlots();
@@ -200,12 +205,20 @@ export class AppCore extends React.Component<any, any> {
 
   /** Başka oturumlardaki değişiklikler: sunucu "değişti" der, bootstrap yeniden çekilir.
    *  Ayrıntı için live.ts. Art arda gelen sinyaller tek tazelemede birleşir. */
-  startLive() {
-    if (!this._live) this._live = new LiveFeed(this.api.tab, (why) => this.liveSignal(why), () => this.liveRefresh());
+  syncLive() {
+    const path = this.state.mode === "app" ? "/api/v1/events"
+      : this.state.mode === "master" && this.state.masterAuthed ? "/api/v1/master/events" : "";
+    if (path === this._livePath) return;
+    this.stopLive();
+    this._livePath = path;
+    if (!path) return;
+    this._live = new LiveFeed(path, this.api.tab, (why) => this.liveSignal(why), () => this.liveRefresh());
     this._live.start();
   }
   stopLive() {
     if (this._live) this._live.stop();
+    this._live = null;
+    this._livePath = "";
     clearTimeout(this._liveT);
   }
   liveSignal(why: "change" | "resync") {
@@ -218,11 +231,14 @@ export class AppCore extends React.Component<any, any> {
     this._liveT = setTimeout(() => this.liveRefresh(), wait);
   }
   async liveRefresh() {
-    if (this.state.mode !== "app") return;
+    const master = this.state.mode === "master" && this.state.masterAuthed;
+    if (this.state.mode !== "app" && !master) return;
     if (this._liveBusy) { this._liveAgain = true; return; }
     this._liveBusy = true;
     try {
       await this.refresh();
+      // Panelde açık bölümün verisi de (yedekler, DNS, denetim günlüğü…) tazelenir.
+      if (master) await this.loadSection(this.state.mSection);
       window.dispatchEvent(new Event(LIVE_EVENT));
     } catch (e) {
       if (e && e.status === 401) this.fail(e);
@@ -262,9 +278,10 @@ export class AppCore extends React.Component<any, any> {
     }
   }
 
+  /** Panele her girişte önce kilit durumu sorulur; kilitliyse giriş formu yerine kilit ekranı açılır. */
   async enterMaster() {
     this.fd = {};
-    this.setState({ mode: "master", masterError: "" });
+    this.setState({ mode: "master", masterError: "", masterTotpNeeded: false });
     try {
       await this.loadMaster();
     } catch (e) {
@@ -313,6 +330,8 @@ export class AppCore extends React.Component<any, any> {
     }
     if (error && error.status === 401 && this.state.mode === "master") {
       this.setState({ masterAuthed: false, masterError: tx(error.message) });
+      // Oturum panel kapatıldığı için düştüyse kilit ekranı gösterilir.
+      this.loadGate();
       return;
     }
     this.toast(tx(error?.message || "İşlem tamamlanamadı."));

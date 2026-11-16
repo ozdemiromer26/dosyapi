@@ -92,6 +92,7 @@ export function buildMaster(c: Ctx): () => Vals {
         ? [{ k: tx("Devre dışı bırakıldı"), v: full(g.since) }]
         : [
           { k: tx("Kendiliğinden açılır"), v: hm(g.until) + " (" + Math.max(1, Math.ceil((g.until * 1000 - Date.now()) / 60000)) + tx(" dk sonra") + ")" },
+          { k: tx("Kilit süresi"), v: Math.round((g.duration || 0) / 60) + tx(" dk") },
           { k: tx("Hatalı deneme"), v: g.failures + (g.lastAt ? tx(" · son ") + hm(g.lastAt) : "") },
         ];
       return {

@@ -158,19 +158,25 @@ impl SetupService {
             })
             .await?;
 
-        for (name, required, accept, multi) in [
-            ("Tapu", true, DocAccept::Pdfimg, false),
-            ("Mimari proje", true, DocAccept::Cad, true),
-            ("İmar çapı", true, DocAccept::Pdf, false),
-            ("Zemin etüdü", false, DocAccept::Pdf, false),
-            ("Statik proje", false, DocAccept::All, true),
+        let list = |v: &str| {
+            v.split(',')
+                .filter(|e| !e.is_empty())
+                .map(str::to_string)
+                .collect()
+        };
+        for (name, required, extensions, multi) in [
+            ("Tapu", true, "pdf,jpg,jpeg,png,webp,tif,tiff,heic", false),
+            ("Mimari proje", true, "dwg,dxf,ifc,rvt,skp", true),
+            ("İmar çapı", true, "pdf", false),
+            ("Zemin etüdü", false, "pdf", false),
+            ("Statik proje", false, "", true),
         ] {
             self.doc_types
                 .insert(&DocType {
                     id: new_id(),
                     name: name.into(),
                     required,
-                    accept,
+                    extensions: list(extensions),
                     multi,
                 })
                 .await?;

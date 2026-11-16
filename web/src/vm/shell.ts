@@ -95,7 +95,7 @@ export function buildShell(c: Ctx): () => Vals {
       langBtnStyleM: "height:36px;min-width:40px;padding:0 10px;flex:none;border-radius:9px;border:1px solid var(--mline2);background:var(--mbtn);color:var(--mtext);font-size:12px;font-weight:800;letter-spacing:.6px;cursor:pointer",
       themeIcon: s.theme === "dark" ? SUN() : MOON(),
       brandMarkXs: DMARK(16), brandMarkLight: DMARK_LIGHT(24), brandMarkAbout: DMARK_LIGHT(46),
-      brandTap: () => { const now = Date.now(); app._bt = (app._bt || []).filter(t => now - t < 2000).concat(now); if (app._bt.length >= 5) { app._bt = []; app.fd = {}; app.setState({ mode: "master", masterError: "" }); } },
+      brandTap: () => { const now = Date.now(); app._bt = (app._bt || []).filter(t => now - t < 2000).concat(now); if (app._bt.length >= 5) { app._bt = []; app.enterMaster(); } },
       bellIcon: ICONS.bell(), profileIcon: ICONS.profile(),
       logoutIcon: ic(["path", { d: "M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" }], ["path", { d: "M10 16l-4-4 4-4" }], L(6, 12, 16, 12)),
       themeIconBtnStyle: "width:36px;height:36px;flex:none;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer",

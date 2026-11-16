@@ -16,7 +16,7 @@
   <img alt="React" src="https://img.shields.io/badge/React-TypeScript-1E4FD8?logo=react&logoColor=white">
   <img alt="SQLite" src="https://img.shields.io/badge/SQLite-g%C3%B6m%C3%BCl%C3%BC-0E1B3D?logo=sqlite&logoColor=white">
   <img alt="Lisans: AGPL-3.0" src="https://img.shields.io/badge/lisans-AGPL--3.0-0E1B3D">
-  <img alt="Sızma testi" src="https://img.shields.io/badge/s%C4%B1zma%20testi-451%2F451-2E7D32">
+  <img alt="Sızma testi" src="https://img.shields.io/badge/s%C4%B1zma%20testi-471%2F471-2E7D32">
 </p>
 
 <p align="center">
@@ -54,7 +54,7 @@ servisi yoktur, sunucu ve arayüz tek bir ikili dosyadadır. Arayüz telefonda v
 - Rol ve kademe tabanlı yetki; alan bazlı onay kuyruğu, talebi geri çekme, silmeyi geri alma
 - Görevler ve yapılacaklar; süresi geçen görevler için uyarı (atanan kişiye ve atayana)
 - Kullanıcılar arası birebir mesajlaşma
-- **Canlı güncelleme:** başka bir oturumda yapılan değişiklik sayfa yenilenmeden görünür
+- **Canlı güncelleme:** başka bir oturumda yapılan değişiklik sayfa yenilenmeden görünür (uygulamada ve Sistem Paneli'nde)
 
 **Belge üretimi**
 - Word benzeri şablon düzenleyici: tablolar, görseller, üst/alt bilgi, sayfa numarası
@@ -137,8 +137,8 @@ dosyapı kişisel veri (TC kimlik numarası, telefon, adres) tuttuğu için güv
 - Güncellemeler Ed25519 imzalı; sürüm geri alma saldırısı engellenir
 - Yedekler kimlik doğrulamalı şifreli (AES-256-GCM): tek bayt değişikliği, kesilme ya da başka anahtarla üretilmiş yedek
   geri yüklemeden önce yakalanır
-- CI her değişiklikte gerçek bir sunucuya karşı **441 saldırı senaryosu** koşar (yetki aşımı, IDOR, enjeksiyon, CSRF,
-  yol geçişi, yedek kurcalama…); sürüm derlemesi gerçek Argon2id ile 451 senaryodan geçer
+- CI her değişiklikte gerçek bir sunucuya karşı **461 saldırı senaryosu** koşar (yetki aşımı, IDOR, enjeksiyon, CSRF,
+  yol geçişi, yedek kurcalama…); sürüm derlemesi gerçek Argon2id ile 471 senaryodan geçer
 
 Tehdit modeli, kapsam dışı kalanlar ve açık bildirimi: [SECURITY.md](SECURITY.md) · Test raporu: [docs/SIZMA-TESTI.md](docs/SIZMA-TESTI.md).
 Testler yazılımı yazan tarafındır; canlıya almadan önce bağımsız bir sızma testi önerilir.
@@ -194,7 +194,7 @@ Word-like template editor that fills documents from project data and exports tex
 
 It ships as a single Rust binary with the React UI and SQLite embedded. One command installs it with Docker and
 automatic HTTPS. Personal data is encrypted at field level (AES-256-GCM), updates are Ed25519-signed, and CI runs
-441 attack scenarios against a live server on every change (451 for the release build). Full backups (database and
+461 attack scenarios against a live server on every change (471 for the release build). Full backups (database and
 files) are a single encrypted, authenticated file that is verified before restore. The UI is available in Turkish and English.
 See [docs/KURULUM.md](docs/KURULUM.md) for installation and [SECURITY.md](SECURITY.md) for the threat model.
 Licensed under the [GNU AGPL-3.0](LICENSE).

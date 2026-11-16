@@ -209,12 +209,16 @@ impl NoteRepo for Db {
 }
 
 fn doc_type_from(r: &SqliteRow) -> AppResult<DocType> {
-    let accept: String = r.try_get("accept").map_err(db_err)?;
+    let extensions: String = r.try_get("extensions").map_err(db_err)?;
     Ok(DocType {
         id: r.try_get("id").map_err(db_err)?,
         name: r.try_get("name").map_err(db_err)?,
         required: r.try_get("required").map_err(db_err)?,
-        accept: DocAccept::parse(&accept).unwrap_or(DocAccept::All),
+        extensions: extensions
+            .split(',')
+            .filter(|e| !e.is_empty())
+            .map(str::to_string)
+            .collect(),
         multi: r.try_get("multi").map_err(db_err)?,
     })
 }
@@ -240,12 +244,12 @@ impl DocTypeRepo for Db {
 
     async fn insert(&self, d: &DocType) -> AppResult<()> {
         sqlx::query(
-            "INSERT INTO doc_types (id, name, required, accept, multi) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO doc_types (id, name, required, extensions, multi) VALUES (?, ?, ?, ?, ?)",
         )
         .bind(&d.id)
         .bind(&d.name)
         .bind(d.required)
-        .bind(d.accept.as_str())
+        .bind(d.extensions.join(","))
         .bind(d.multi)
         .execute(&self.pool)
         .await
@@ -255,11 +259,11 @@ impl DocTypeRepo for Db {
 
     async fn update(&self, d: &DocType) -> AppResult<()> {
         sqlx::query(
-            "UPDATE doc_types SET name = ?, required = ?, accept = ?, multi = ? WHERE id = ?",
+            "UPDATE doc_types SET name = ?, required = ?, extensions = ?, multi = ? WHERE id = ?",
         )
         .bind(&d.name)
         .bind(d.required)
-        .bind(d.accept.as_str())
+        .bind(d.extensions.join(","))
         .bind(d.multi)
         .bind(&d.id)
         .execute(&self.pool)

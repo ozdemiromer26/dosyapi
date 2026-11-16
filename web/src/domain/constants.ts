@@ -16,9 +16,18 @@ export const STATUSES = [
   ["ruhsat", "Ruhsat alındı"], ["iskan", "İskan alındı"],
 ];
 export const STATUS_LABEL = (id) => tx((STATUSES.find(x => x[0] === id) || ["", "Etüt aşaması"])[1]);
-export const DOC_FORMATS = [["all", "Tüm dosya tipleri"], ["pdf", "Yalnızca PDF"], ["pdfimg", "PDF + görsel"], ["image", "Görsel (JPG/PNG)"], ["cad", "Çizim (DWG/DXF)"], ["office", "Ofis belgesi"]];
-export const ACCEPT_ATTR = { all: "*/*", pdf: ".pdf", pdfimg: ".pdf,image/*", image: "image/*", cad: ".dwg,.dxf", office: ".doc,.docx,.xls,.xlsx,.ppt,.pptx" };
-export const FMT_LABEL = (id) => tx((DOC_FORMATS.find(x => x[0] === (id || "all")) || DOC_FORMATS[0])[1]);
+/** Belge tipine tek tıkla eklenebilen hazır uzantı grupları; liste boşsa her tür kabul edilir. */
+export const EXT_PRESETS: [string, string, string[]][] = [
+  ["pdf", "PDF", ["pdf"]],
+  ["image", "Görsel", ["jpg", "jpeg", "png", "webp", "heic", "tif", "tiff"]],
+  ["cad", "Çizim (DWG/DXF/IFC)", ["dwg", "dxf", "ifc", "rvt", "skp"]],
+  ["office", "Ofis belgesi", ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods"]],
+  ["video", "Video", ["mp4", "mov", "m4v", "avi", "mkv", "webm"]],
+  ["archive", "Arşiv (ZIP/RAR/7Z)", ["zip", "rar", "7z"]],
+];
+/** Dosya seçme penceresinin süzgeci; boş liste süzgeç koymaz. */
+export const ACCEPT_ATTR = (exts?: string[]) => (exts && exts.length ? exts.map(e => "." + e).join(",") : undefined);
+export const FMT_LABEL = (exts?: string[]) => (exts && exts.length ? exts.map(e => e.toUpperCase()).join(", ") : tx("Tüm dosya tipleri"));
 export const MSECTIONS = [["kimlik", "Şirket kimliği"], ["roller", "Roller & yetkiler"], ["kullanicilar", "Kullanıcılar"], ["projeler", "Sunucu dosyaları"], ["dns", "Alan adı & DNS"], ["eposta", "E-posta"], ["sistem", "Sistem"], ["guvenlik", "Güvenlik"], ["hakkinda", "Hakkında"]];
 export const FLAGS = [["company", "Şirket ayarları"], ["users", "Kullanıcı yönetimi"], ["approve", "Kayıt onaylama"], ["tasks", "Görev atama"], ["files", "Dosya yükleme"], ["templates", "Şablon yönetimi"]];
 

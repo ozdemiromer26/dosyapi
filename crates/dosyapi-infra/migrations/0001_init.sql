@@ -61,12 +61,12 @@ CREATE TABLE auth_tokens (
 CREATE INDEX auth_tokens_user ON auth_tokens (user_id, purpose);
 
 CREATE TABLE doc_types (
-    id       TEXT PRIMARY KEY,
-    name     TEXT NOT NULL,
-    required INTEGER NOT NULL DEFAULT 0,
-    accept   TEXT NOT NULL,
-    multi    INTEGER NOT NULL DEFAULT 0,
-    position INTEGER NOT NULL DEFAULT 0
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    required   INTEGER NOT NULL DEFAULT 0,
+    extensions TEXT NOT NULL DEFAULT '', -- virgülle ayrılmış; boşsa her tür
+    multi      INTEGER NOT NULL DEFAULT 0,
+    position   INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE professions (

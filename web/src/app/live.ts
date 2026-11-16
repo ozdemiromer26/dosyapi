@@ -7,7 +7,8 @@
  *  - Bağlantı koparsa tarayıcı kendisi yeniden dener; sunucu reddederse (oturum düştü,
  *    sınır doldu) artan aralıklarla yeniden denenir. Bu sürede eski yoklama devrededir.
  *  - Her sekmenin rastgele bir kimliği vardır (X-Tab-Id); sekme kendi değişikliği için
- *    sinyal almaz, çünkü işlemin ardından zaten tazeler. */
+ *    sinyal almaz, çünkü işlemin ardından zaten tazeler.
+ *  - Uygulama `/api/v1/events`, Sistem Paneli `/api/v1/master/events` akışını dinler. */
 
 export const LIVE_EVENT = "dosyapi:live";
 const HIDDEN_GRACE = 60000;
@@ -28,6 +29,8 @@ export class LiveFeed {
   private running = false;
 
   constructor(
+    /** Akış adresi: uygulama ya da Sistem Paneli. */
+    private path: string,
     private tab: string,
     /** "change": başka bir oturum değişiklik yaptı; "resync": bağlantı (yeniden) kuruldu. */
     private onSignal: (why: "change" | "resync") => void,
@@ -54,7 +57,7 @@ export class LiveFeed {
   private open() {
     clearTimeout(this.retryTimer);
     if (!this.running || this.es) return;
-    const es = new EventSource("/api/v1/events?tab=" + encodeURIComponent(this.tab));
+    const es = new EventSource(this.path + "?tab=" + encodeURIComponent(this.tab));
     this.es = es;
     es.addEventListener("ready", () => {
       this.connected = true;

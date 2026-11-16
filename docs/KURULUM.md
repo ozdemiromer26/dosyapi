@@ -191,8 +191,8 @@ servisi durdurun (`sudo systemctl stop dosyapi`), komutu `dosyapi` kullanıcıs�
 
 ## Sistem Paneli: şifre, kilit, kapatma
 
-5. hatalı master şifre denemesinde panel 5 dakika kilitlenir; kilit bitince her yeni hata bir üst kademe kilitler: 15 dk,
-30 dk, sonra her hatada 60 dk. Kilit ekranında açılma zamanı ve deneme sayısı görünür; denemelerin IP adresleri denetim
+5. hatalı master şifre denemesinde panel 5 dakika kilitlenir; kilit bitince her 3 yeni hata bir üst kademe kilitler:
+15 dk, 30 dk, sonra her 3 hatada 60 dk. Kilit ekranında açılma zamanı ve deneme sayısı görünür; denemelerin IP adresleri denetim
 günlüğündedir. Hemen açmak ya da paneli tamamen kapatıp açmak için:
 
 ```bash

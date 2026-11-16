@@ -1,7 +1,7 @@
 // Görünüm modeli: company
 import type { Ctx, Vals } from "./types";
 import { tx } from "../i18n";
-import { DOC_FORMATS } from "../domain/constants";
+import { EXT_PRESETS } from "../domain/constants";
 /*IMPORTS*/
 
 export function buildCompany(c: Ctx): () => Vals {
@@ -15,22 +15,38 @@ export function buildCompany(c: Ctx): () => Vals {
     const { s } = c; /*LATE*/
     return {
       docTypes: s.docTypes.map(d => {
-        const save = (patch) => app.act(() => app.api.put("/doc-types/" + d.id, { name: d.name, required: d.required, accept: d.accept, multi: d.multi, ...patch }));
+        const exts: string[] = d.extensions || [];
+        const field = "ext_" + d.id;
+        const put = (patch) => app.api.put("/doc-types/" + d.id, { name: d.name, required: d.required, extensions: exts, multi: d.multi, ...patch });
+        const save = (patch) => app.act(() => put(patch));
+        const addExt = () => {
+          const raw = (app.fd[field] || "").trim(); if (!raw) return;
+          // Alan yalnızca kayıt başarılıysa temizlenir; reddedilen uzantı düzeltilebilsin.
+          app.act(() => put({ extensions: exts.concat([raw]) }).then(() => app.clearFields(field)));
+        };
         return {
           ...d, reqLabel: d.required ? tx("Zorunlu") : tx("Seçmeli"), reqBtnStyle: optBtn(!!d.required), multiBtnStyle: optBtn(!!d.multi),
           onToggleReq: () => save({ required: !d.required }),
           onDelete: () => app.act(() => app.api.del("/doc-types/" + d.id)),
-          accept: d.accept || "all",
-          onFormat: (e) => save({ accept: e.target.value }),
+          extAll: !exts.length,
+          extChips: exts.map(x => ({ key: x, label: "." + x, onRemove: () => save({ extensions: exts.filter(y => y !== x) }) })),
+          extField: field, refExt: app.mkRef(field), addExt,
+          onExtKey: (e) => { if (e.key === "Enter") { e.preventDefault(); addExt(); } },
+          onPreset: (e) => {
+            const id = e.target.value; e.target.value = ""; if (!id) return;
+            if (id === "all") return save({ extensions: [] });
+            const p = EXT_PRESETS.find(x => x[0] === id); if (!p) return;
+            save({ extensions: exts.concat(p[2].filter(x => exts.indexOf(x) < 0)) });
+          },
           multiLabel: d.multi ? tx("Çoklu dosya") : tx("Tek dosya"),
           onToggleMulti: () => save({ multi: !d.multi }),
         };
       }),
-      docFormats: DOC_FORMATS.map(x => ({ id: x[0], label: tx(x[1]) })),
+      extPresets: EXT_PRESETS.map(x => ({ id: x[0], label: tx(x[1]) })),
       addDocType: () => {
         const name = (app.fd.dtName || "").trim(); if (!name) return;
         app.clearFields("dtName");
-        app.act(() => app.api.post("/doc-types", { name, required: false, accept: "all", multi: false }));
+        app.act(() => app.api.post("/doc-types", { name, required: false, extensions: [], multi: false }));
       },
       professions: s.professions.map(p => {
         const required = (s.profRequired || {})[p] !== false;

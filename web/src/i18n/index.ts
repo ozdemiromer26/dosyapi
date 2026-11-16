@@ -12,6 +12,11 @@ const PATTERNS: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^Master şifre hatalı\. (\d+) deneme hakkınız kaldı\.$/, (m) => "Wrong master password. " + m[1] + (m[1] === "1" ? " attempt" : " attempts") + " left."],
   [/^Bu yedek daha yeni bir dosyapı sürümüyle \((.+?)\) alınmış; bu sunucu (.+?)\. Geri yüklemek için önce sunucuyu en az (.+?) sürümüne güncelleyin\.$/, (m) => "This backup was made by a newer dosyapı version (" + m[1] + "); this server runs " + m[2] + ". Update the server to at least " + m[3] + " before restoring it."],
   [/^Yedekte (\d+) dosya eksik\.$/, (m) => m[1] + (m[1] === "1" ? " file is" : " files are") + " missing from the backup."],
+  [/^Bu belge tipi yalnızca şu dosyaları kabul ediyor: (.+)\.$/, (m) => "This document type only accepts: " + m[1] + "."],
+  [/^\.(\S+) dosyaları güvenlik nedeniyle yüklenemez\.$/, (m) => "." + m[1] + " files cannot be uploaded for security reasons."],
+  [/^\.(\S+) güvenlik nedeniyle yüklenebilecek türler arasına eklenemez\.$/, (m) => "." + m[1] + " cannot be allowed for security reasons."],
+  [/^Geçersiz uzantı: (.+)\. Yalnızca harf ve rakam kullanın \(ör\. pdf, mp4\)\.$/, (m) => "Invalid extension: " + m[1] + ". Use letters and digits only (e.g. pdf, mp4)."],
+  [/^Bir belge tipine en çok (\d+) uzantı eklenebilir\.$/, (m) => "A document type can have at most " + m[1] + " extensions."],
   [/^Art arda hatalı şifre girildiği için hesabınız kilitlendi\. Kalan süre: (\d+) (dakika|saat)\.$/, (m) => "Your account is locked after repeated wrong passwords. Time left: " + unit(m[1], m[2]) + "."],
   [/^Hesabınız sistem yöneticisi tarafından kilitlendi\. Kalan süre: (\d+) (dakika|saat)\.$/, (m) => "Your account was locked by the system administrator. Time left: " + unit(m[1], m[2]) + "."],
 ];

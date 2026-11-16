@@ -208,19 +208,23 @@ async fn serve(config: Config) -> Result<()> {
             }
         }
     });
+    let events = Arc::new(http::events::EventHub::new());
     let scheduled = services.clone();
+    let scheduled_events = events.clone();
     tokio::spawn(async move {
         let start = tokio::time::Instant::now() + Duration::from_secs(60);
         let mut tick = tokio::time::interval_at(start, Duration::from_secs(600));
         loop {
             tick.tick().await;
-            if let Err(error) = scheduled_backup(&scheduled).await {
-                tracing::warn!(?error, "otomatik yedek alınamadı");
+            match scheduled_backup(&scheduled).await {
+                // Açık Sistem Paneli yedek listesini tazelesin.
+                Ok(true) => scheduled_events.changed(),
+                Ok(false) => {}
+                Err(error) => tracing::warn!(?error, "otomatik yedek alınamadı"),
             }
         }
     });
 
-    let events = Arc::new(http::events::EventHub::new());
     let state = http::AppState {
         services: services.clone(),
         public_url: runtime.public_url.clone(),
@@ -252,10 +256,10 @@ async fn serve(config: Config) -> Result<()> {
 }
 
 /// Zamanlanmış tam yedek: ayardaki aralık dolduysa alır, eski otomatik yedekleri budar.
-async fn scheduled_backup(services: &app::Services) -> dosyapi_core::AppResult<()> {
+async fn scheduled_backup(services: &app::Services) -> dosyapi_core::AppResult<bool> {
     use dosyapi_core::services::settings::{BackupSchedule, KEY_BACKUP_SCHEDULE};
     if services.setup.required().await? {
-        return Ok(());
+        return Ok(false);
     }
     let schedule: BackupSchedule = services
         .settings
@@ -263,7 +267,7 @@ async fn scheduled_backup(services: &app::Services) -> dosyapi_core::AppResult<(
         .await?
         .unwrap_or_default();
     if !schedule.enabled {
-        return Ok(());
+        return Ok(false);
     }
     let last = services
         .backups
@@ -275,7 +279,7 @@ async fn scheduled_backup(services: &app::Services) -> dosyapi_core::AppResult<(
         .max()
         .unwrap_or(0);
     if services.clock.now() - last < schedule.every_hours * 3600 {
-        return Ok(());
+        return Ok(false);
     }
     let info = services.backups.create("otomatik").await?;
     tracing::info!(name = %info.name, "otomatik yedek alındı");
@@ -286,7 +290,7 @@ async fn scheduled_backup(services: &app::Services) -> dosyapi_core::AppResult<(
     if removed > 0 {
         tracing::info!(removed, "eski otomatik yedekler silindi");
     }
-    Ok(())
+    Ok(true)
 }
 
 /// systemd SIGTERM gönderir; süren istekler tamamlanıp temiz kapanılır.

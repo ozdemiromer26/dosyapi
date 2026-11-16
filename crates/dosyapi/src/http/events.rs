@@ -2,7 +2,8 @@
 //!
 //! Sunucu yalnızca "bir şey değişti" der, hiçbir kayıt göndermez. İstemci bu sinyali
 //! alınca `/bootstrap`'i kendi oturumu ve yetkisiyle yeniden çeker. Böylece yetki kararı
-//! tek yerde (servislerde) kalır; olay akışından hiçbir veri sızamaz.
+//! tek yerde (servislerde) kalır; olay akışından hiçbir veri sızamaz. Sistem Paneli kendi
+//! oturumuyla ayrı uçtan (`/master/events`) aynı sinyali alır ve `/master/state`'i çeker.
 //!
 //! Akış: başarılı her değiştirici istek (POST/PUT/DELETE) → `notify_changes` ara katmanı
 //! → yayın kanalı → açık her akış kısa bir birleştirme beklemesinden sonra tek `change`
@@ -11,7 +12,7 @@
 
 use super::AppState;
 use super::error::ApiError;
-use super::extract::AuthUser;
+use super::extract::{AuthUser, MasterUser};
 use axum::extract::{Query, Request, State};
 use axum::http::{HeaderValue, Method, header};
 use axum::middleware::Next;
@@ -74,6 +75,11 @@ impl EventHub {
     fn publish(&self, tab: Option<String>) {
         // Dinleyen yoksa gönderim hata döner; bu beklenen bir durumdur.
         let _ = self.tx.send(Change { tab });
+    }
+
+    /// İstek dışı bir değişiklik (ör. zamanlanmış yedek) için tüm akışlara sinyal.
+    pub fn changed(&self) {
+        self.publish(None);
     }
 
     /// Kapanışta açık akışları bitirir; yoksa zarif kapanış bu bağlantıları sonsuza dek bekler.
@@ -162,7 +168,14 @@ pub struct StreamQuery {
     tab: Option<String>,
 }
 
+/// Akışın sahibi: oturum düşünce akış kapanır.
+enum Owner {
+    User,
+    Master,
+}
+
 struct Feed {
+    owner: Owner,
     rx: broadcast::Receiver<Change>,
     closed: watch::Receiver<bool>,
     recheck: tokio::time::Interval,
@@ -190,7 +203,12 @@ impl Feed {
                     Err(broadcast::error::RecvError::Closed) => return None,
                 },
                 _ = self.recheck.tick() => {
-                    if !self.state.services.auth.session_alive(&self.token_hash).await {
+                    let services = &self.state.services;
+                    let alive = match self.owner {
+                        Owner::User => services.auth.session_alive(&self.token_hash).await,
+                        Owner::Master => services.master.session_alive(&self.token_hash).await,
+                    };
+                    if !alive {
                         return None;
                     }
                 }
@@ -206,19 +224,39 @@ pub async fn stream(
     AuthUser(auth): AuthUser,
     Query(query): Query<StreamQuery>,
 ) -> Result<Response, ApiError> {
-    let slot = state
-        .events
-        .acquire(&auth.actor.user_id)
-        .ok_or(AppError::RateLimited {
-            retry_after_secs: 30,
-        })?;
+    let slot = state.events.acquire(&auth.actor.user_id);
+    open_feed(state, Owner::User, auth.token_hash, query, slot)
+}
+
+/// `GET /api/v1/master/events`: Sistem Paneli oturumuna değişiklik akışı.
+pub async fn master_stream(
+    State(state): State<AppState>,
+    MasterUser(auth): MasterUser,
+    Query(query): Query<StreamQuery>,
+) -> Result<Response, ApiError> {
+    // Panel oturumları kullanıcı kimliğiyle karışmasın diye ayrı bir sayaç anahtarı.
+    let slot = state.events.acquire("\u{0}master");
+    open_feed(state, Owner::Master, auth.token_hash, query, slot)
+}
+
+fn open_feed(
+    state: AppState,
+    owner: Owner,
+    token_hash: Vec<u8>,
+    query: StreamQuery,
+    slot: Option<Slot>,
+) -> Result<Response, ApiError> {
+    let slot = slot.ok_or(AppError::RateLimited {
+        retry_after_secs: 30,
+    })?;
     let mut recheck = tokio::time::interval_at(Instant::now() + RECHECK, RECHECK);
     recheck.set_missed_tick_behavior(MissedTickBehavior::Delay);
     let feed = Feed {
+        owner,
         rx: state.events.tx.subscribe(),
         closed: state.events.closed.subscribe(),
         recheck,
-        token_hash: auth.token_hash,
+        token_hash,
         tab: query.tab.filter(|t| valid_tab(t)),
         state: state.clone(),
         _slot: slot,

@@ -15,22 +15,141 @@ pub const MAX_LOGO_BYTES: usize = 2 * 1024 * 1024;
 /// İstemci fotoğrafı göndermeden önce küçültür; bu sınır yalnızca üst güvenlik sınırıdır.
 pub const MAX_PHOTO_BYTES: usize = 3 * 1024 * 1024;
 
-const PDF: &[&str] = &["pdf"];
-const IMAGE: &[&str] = &["jpg", "jpeg", "png", "webp", "tif", "tiff", "heic"];
-const CAD: &[&str] = &["dwg", "dxf", "ifc", "rvt", "skp"];
-const OFFICE: &[&str] = &["doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods"];
-const OTHER: &[&str] = &["zip", "rar", "7z", "txt", "csv"];
+/// Hiçbir belge tipine eklenemeyen, hiçbir koşulda yüklenemeyen türler: çalıştırılabilir
+/// programlar, betikler ve tarayıcıda kod çalıştırabilen biçimler. Platform bunların
+/// dağıtım aracına dönüşmemeli.
+const BLOCKED: &[&str] = &[
+    "exe",
+    "msi",
+    "msp",
+    "com",
+    "scr",
+    "pif",
+    "cpl",
+    "dll",
+    "sys",
+    "drv",
+    "ocx",
+    "bat",
+    "cmd",
+    "ps1",
+    "psm1",
+    "psd1",
+    "vbs",
+    "vbe",
+    "js",
+    "jse",
+    "mjs",
+    "cjs",
+    "wsf",
+    "wsh",
+    "hta",
+    "lnk",
+    "reg",
+    "inf",
+    "jar",
+    "class",
+    "sh",
+    "bash",
+    "zsh",
+    "csh",
+    "ksh",
+    "command",
+    "app",
+    "dmg",
+    "pkg",
+    "mpkg",
+    "apk",
+    "xapk",
+    "ipa",
+    "deb",
+    "rpm",
+    "run",
+    "bin",
+    "elf",
+    "so",
+    "dylib",
+    "html",
+    "htm",
+    "xhtml",
+    "shtml",
+    "mht",
+    "mhtml",
+    "svg",
+    "svgz",
+    "xht",
+    "php",
+    "phtml",
+    "phar",
+    "asp",
+    "aspx",
+    "jsp",
+    "cgi",
+    "pl",
+    "py",
+    "pyc",
+    "rb",
+    "applescript",
+    "scpt",
+    "workflow",
+    "desktop",
+    "url",
+    "webloc",
+    "appref-ms",
+    "gadget",
+    "msc",
+    "application",
+    "xbap",
+    "xll",
+    "iqy",
+    "settingcontent-ms",
+];
 
-fn allowed_extensions(accept: DocAccept) -> Vec<&'static str> {
-    let groups: &[&[&str]] = match accept {
-        DocAccept::Pdf => &[PDF],
-        DocAccept::Pdfimg => &[PDF, IMAGE],
-        DocAccept::Image => &[IMAGE],
-        DocAccept::Cad => &[CAD],
-        DocAccept::Office => &[OFFICE],
-        DocAccept::All => &[PDF, IMAGE, CAD, OFFICE, OTHER],
-    };
-    groups.iter().flat_map(|g| g.iter().copied()).collect()
+/// Bir belge tipine yazılabilecek en çok uzantı.
+pub const MAX_EXTENSIONS: usize = 40;
+
+pub fn is_blocked(extension: &str) -> bool {
+    BLOCKED.contains(&extension)
+}
+
+/// Şirket ayarlarında girilen uzantıları düzenler: küçük harf, baştaki nokta atılır,
+/// virgül ya da boşlukla ayrılmış birden çok uzantı ayrılır, tekrarlar silinir.
+/// Tehlikeli türler ve uzantı olamayacak değerler reddedilir.
+pub fn extensions(input: &[String]) -> AppResult<Vec<String>> {
+    let mut out: Vec<String> = Vec::new();
+    for raw in input
+        .iter()
+        .flat_map(|v| v.split(|c: char| c == ',' || c == ';' || c.is_whitespace()))
+    {
+        let ext = raw.trim().trim_start_matches('.').to_lowercase();
+        if ext.is_empty() {
+            continue;
+        }
+        let shape = ext.len() <= 16
+            && ext
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+        if !shape {
+            return Err(AppError::validation(format!(
+                "Geçersiz uzantı: {}. Yalnızca harf ve rakam kullanın (ör. pdf, mp4).",
+                raw.chars().take(20).collect::<String>()
+            )));
+        }
+        if is_blocked(&ext) {
+            return Err(AppError::validation(format!(
+                ".{ext} güvenlik nedeniyle yüklenebilecek türler arasına eklenemez."
+            )));
+        }
+        if !out.contains(&ext) {
+            out.push(ext);
+        }
+    }
+    if out.len() > MAX_EXTENSIONS {
+        return Err(AppError::validation(format!(
+            "Bir belge tipine en çok {MAX_EXTENSIONS} uzantı eklenebilir."
+        )));
+    }
+    Ok(out)
 }
 
 fn starts(head: &[u8], magic: &[u8]) -> bool {
@@ -44,25 +163,82 @@ fn is_text(head: &[u8]) -> bool {
     !head.contains(&0)
 }
 
+fn riff(head: &[u8], form: &[u8; 4]) -> bool {
+    head.len() >= 12 && &head[..4] == b"RIFF" && &head[8..12] == form
+}
+
+/// ISO taban medya biçimi (MP4, MOV, HEIC, 3GP…): 4. bayttan itibaren "ftyp".
+fn iso_media(head: &[u8]) -> bool {
+    head.len() >= 12 && &head[4..8] == b"ftyp"
+}
+
+/// Uzantısı ne olursa olsun reddedilen içerik: çalıştırılabilir dosyalar, betikler ve
+/// tarayıcının sayfa olarak yorumlayabileceği HTML/SVG.
+pub fn looks_dangerous(head: &[u8]) -> bool {
+    const EXECUTABLE: &[&[u8]] = &[
+        b"MZ",
+        b"\x7fELF",
+        b"#!",
+        &[0xFE, 0xED, 0xFA, 0xCE],
+        &[0xFE, 0xED, 0xFA, 0xCF],
+        &[0xCE, 0xFA, 0xED, 0xFE],
+        &[0xCF, 0xFA, 0xED, 0xFE],
+        &[0xCA, 0xFE, 0xBA, 0xBE],
+    ];
+    if EXECUTABLE.iter().any(|m| starts(head, m)) {
+        return true;
+    }
+    let text: Vec<u8> = head
+        .iter()
+        .skip_while(|b| b.is_ascii_whitespace() || **b == 0xEF || **b == 0xBB || **b == 0xBF)
+        .take(64)
+        .map(u8::to_ascii_lowercase)
+        .collect();
+    [
+        &b"<!doctype html"[..],
+        b"<html",
+        b"<head",
+        b"<body",
+        b"<script",
+        b"<svg",
+        b"<?php",
+        b"<?xml-stylesheet",
+    ]
+    .iter()
+    .any(|m| starts(&text, m))
+}
+
 /// Uzantının vaat ettiği tür ile dosyanın ilk baytları uyuşmalı.
 /// Böylece `.pdf` adıyla yüklenen çalıştırılabilir ya da HTML içerik reddedilir.
+/// İmzası bilinmeyen türlerde (şirketin eklediği uzantılar) yalnızca tehlikeli içerik aranır.
 pub fn content_matches(extension: &str, head: &[u8]) -> bool {
+    if is_blocked(extension) || looks_dangerous(head) {
+        return false;
+    }
     match extension {
         "pdf" => starts(head, b"%PDF-"),
         "jpg" | "jpeg" => starts(head, &[0xFF, 0xD8, 0xFF]),
         "png" => starts(head, &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]),
-        "webp" => head.len() >= 12 && &head[..4] == b"RIFF" && &head[8..12] == b"WEBP",
+        "gif" => starts(head, b"GIF87a") || starts(head, b"GIF89a"),
+        "bmp" => starts(head, b"BM"),
+        "webp" => riff(head, b"WEBP"),
         "tif" | "tiff" => starts(head, b"II*\0") || starts(head, b"MM\0*"),
-        "heic" => head.len() >= 12 && &head[4..8] == b"ftyp",
+        "heic" | "heif" | "avif" | "mp4" | "m4v" | "m4a" | "mov" | "3gp" => iso_media(head),
+        "avi" => riff(head, b"AVI "),
+        "wav" => riff(head, b"WAVE"),
+        "mkv" | "webm" => starts(head, &[0x1A, 0x45, 0xDF, 0xA3]),
+        "mp3" => {
+            starts(head, b"ID3") || (head.len() >= 2 && head[0] == 0xFF && (head[1] & 0xE0) == 0xE0)
+        }
         "dwg" => starts(head, b"AC10") || starts(head, b"AC1."),
         "ifc" => starts(head, b"ISO-10303-21"),
         "rvt" | "doc" | "xls" | "ppt" => starts(head, OLE),
         "skp" => starts(head, &[0xFF, 0xFE, 0xFF]),
-        "docx" | "xlsx" | "pptx" | "odt" | "ods" | "zip" => starts(head, ZIP),
+        "docx" | "xlsx" | "pptx" | "odt" | "ods" | "odp" | "zip" => starts(head, ZIP),
         "rar" => starts(head, b"Rar!\x1A\x07"),
         "7z" => starts(head, &[0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C]),
         "dxf" | "txt" | "csv" => is_text(head),
-        _ => false,
+        _ => true,
     }
 }
 
@@ -78,15 +254,13 @@ pub fn logo_mime(head: &[u8]) -> Option<&'static str> {
     }
 }
 
-fn accept_label(accept: DocAccept) -> &'static str {
-    match accept {
-        DocAccept::All => "izin verilen dosya tipleri",
-        DocAccept::Pdf => "PDF",
-        DocAccept::Pdfimg => "PDF veya görsel",
-        DocAccept::Image => "görsel",
-        DocAccept::Cad => "çizim (DWG/DXF)",
-        DocAccept::Office => "ofis belgesi",
-    }
+/// Belge tipinin kabul ettiği türlerin okunur listesi: "PDF, DWG, DXF".
+fn extension_label(extensions: &[String]) -> String {
+    extensions
+        .iter()
+        .map(|e| e.to_uppercase())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 #[derive(Clone)]
@@ -126,13 +300,24 @@ impl FileService {
             Some(id) => Some(self.doc_types.get(id).await?.ok_or(AppError::NotFound)?),
             None => None,
         };
-        let accept = doc_type.as_ref().map_or(DocAccept::All, |d| d.accept);
         let name = validate::file_name(&request.file_name)?;
         let extension = validate::file_extension(&name);
-        if !allowed_extensions(accept).contains(&extension.as_str()) {
+        if extension.is_empty() {
+            return Err(AppError::validation(
+                "Dosyanın bir uzantısı olmalı (ör. .pdf).",
+            ));
+        }
+        if is_blocked(&extension) {
             return Err(AppError::validation(format!(
-                "Bu dosya tipi kabul edilmiyor: yalnızca {}.",
-                accept_label(accept)
+                ".{extension} dosyaları güvenlik nedeniyle yüklenemez."
+            )));
+        }
+        if let Some(d) = doc_type.as_ref().filter(|d| !d.extensions.is_empty())
+            && !d.extensions.contains(&extension)
+        {
+            return Err(AppError::validation(format!(
+                "Bu belge tipi yalnızca şu dosyaları kabul ediyor: {}.",
+                extension_label(&d.extensions)
             )));
         }
 
@@ -344,6 +529,7 @@ impl FileService {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
@@ -359,10 +545,36 @@ mod tests {
 
     #[test]
     fn dangerous_extensions_are_not_allowed() {
-        let all = allowed_extensions(DocAccept::All);
         for ext in ["exe", "js", "html", "svg", "php", "sh", "bat"] {
-            assert!(!all.contains(&ext), "{ext} kabul edilmemeli");
+            assert!(is_blocked(ext), "{ext} engellenmeli");
+            assert!(extensions(&[ext.into()]).is_err(), "{ext} eklenmemeli");
+            assert!(!content_matches(ext, b"zararsiz"), "{ext} kabul edilmemeli");
         }
+    }
+
+    #[test]
+    fn custom_extensions_are_normalised() {
+        let out = extensions(&[".MP4, mov".into(), "stl".into(), "mp4".into(), "".into()]).unwrap();
+        assert_eq!(out, ["mp4", "mov", "stl"]);
+        assert!(extensions(&["../x".into()]).is_err());
+        assert!(extensions(&["a".repeat(17)]).is_err());
+        let many: Vec<String> = (0..=MAX_EXTENSIONS).map(|i| format!("e{i}")).collect();
+        assert!(extensions(&many).is_err());
+    }
+
+    #[test]
+    fn unknown_types_only_reject_dangerous_content() {
+        assert!(content_matches("stl", b"solid kup\nfacet normal 0 0 1"));
+        assert!(content_matches("stl", &[0u8; 84]));
+        assert!(!content_matches("stl", b"MZ\x90\x00"));
+        assert!(!content_matches("stl", b"\x7fELF\x02"));
+        assert!(!content_matches(
+            "md",
+            b"  <!DOCTYPE html><script>1</script>"
+        ));
+        assert!(!content_matches("xyz", b"<svg onload=alert(1)>"));
+        assert!(content_matches("mp4", b"\0\0\0\x18ftypmp42\0\0\0\0"));
+        assert!(!content_matches("mp4", b"%PDF-1.7"));
     }
 
     #[test]

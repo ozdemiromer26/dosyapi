@@ -4,7 +4,7 @@ use crate::error::{AppError, AppResult};
 use crate::model::*;
 use crate::ports::*;
 use crate::services::audit::Auditor;
-use crate::services::files::{MAX_LOGO_BYTES, logo_mime};
+use crate::services::files::{self, MAX_LOGO_BYTES, logo_mime};
 use crate::services::settings::*;
 use crate::validate;
 use serde::Deserialize;
@@ -182,7 +182,7 @@ impl CompanyService {
             id: new_id(),
             name: validate::required(&input.name, "Belge adı", 160)?,
             required: input.required,
-            accept: input.accept,
+            extensions: files::extensions(&input.extensions)?,
             multi: input.multi,
         };
         self.doc_types.insert(&doc_type).await?;
@@ -205,7 +205,7 @@ impl CompanyService {
                 id: id.to_string(),
                 name: validate::required(&input.name, "Belge adı", 160)?,
                 required: input.required,
-                accept: input.accept,
+                extensions: files::extensions(&input.extensions)?,
                 multi: input.multi,
             })
             .await?;

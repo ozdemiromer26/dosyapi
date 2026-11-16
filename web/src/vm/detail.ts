@@ -24,7 +24,7 @@ export function buildDetail(c: Ctx): () => Vals {
       const st = files.length ? "ok" : pend ? "warn" : d.required ? "err" : "none";
       return {
         name: d.name, open, caret: open ? "▾" : "▸", onToggle: toggleDoc(k),
-        desc: [d.required ? tx("Zorunlu") : tx("Seçmeli"), d.multi ? tx("Çoklu dosya") : tx("Tek dosya"), FMT_LABEL(d.accept)].join(" · "),
+        desc: [d.required ? tx("Zorunlu") : tx("Seçmeli"), d.multi ? tx("Çoklu dosya") : tx("Tek dosya"), FMT_LABEL(d.extensions)].join(" · "),
         statusLabel: files.length ? (files.length > 1 ? files.length + tx(" dosya") : tx("Yüklendi")) : pend ? tx("Onayda") : d.required ? tx("Eksik") : tx("Yüklenmedi"),
         statusStyle: pill(st), iconStyle: iconBox(st === "warn" ? "none" : st),
         files: files.map((f, i) => ({
@@ -38,7 +38,7 @@ export function buildDetail(c: Ctx): () => Vals {
         emptyLabel: d.required ? tx("Henüz dosya yüklenmedi — bu belge zorunlu.") : tx("Henüz dosya yüklenmedi."),
         emptyStyle: "font-size:12px;font-weight:700;padding:4px 2px;color:" + (d.required ? "var(--errtext)" : "var(--muted)"),
         pendingLabel: pend ? tx("Onay bekliyor: ") + pend.fileName : "",
-        canUpload: app.perm("files"), acceptAttr: ACCEPT_ATTR[d.accept || "all"], multi: !!d.multi,
+        canUpload: app.perm("files"), acceptAttr: ACCEPT_ATTR(d.extensions), multi: !!d.multi,
         uploadLabel: d.multi ? (files.length ? tx("Dosya ekle") : tx("Dosya yükle")) : (files.length ? tx("Dosyayı değiştir") : tx("Dosya yükle")),
         onUpload: (e) => {
           const fl = Array.prototype.slice.call(e.target.files || []); if (!fl.length) return;

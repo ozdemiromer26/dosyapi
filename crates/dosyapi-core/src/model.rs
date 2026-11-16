@@ -528,48 +528,14 @@ pub struct ProjectNote {
     pub updated_at: Timestamp,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum DocAccept {
-    All,
-    Pdf,
-    Pdfimg,
-    Image,
-    Cad,
-    Office,
-}
-
-impl DocAccept {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::All => "all",
-            Self::Pdf => "pdf",
-            Self::Pdfimg => "pdfimg",
-            Self::Image => "image",
-            Self::Cad => "cad",
-            Self::Office => "office",
-        }
-    }
-    pub fn parse(value: &str) -> Option<Self> {
-        Some(match value {
-            "all" => Self::All,
-            "pdf" => Self::Pdf,
-            "pdfimg" => Self::Pdfimg,
-            "image" => Self::Image,
-            "cad" => Self::Cad,
-            "office" => Self::Office,
-            _ => return None,
-        })
-    }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocType {
     pub id: Id,
     pub name: String,
     pub required: bool,
-    pub accept: DocAccept,
+    /// Kabul edilen uzantılar (küçük harf, noktasız). Boşsa tehlikeli olmayan her tür kabul edilir.
+    pub extensions: Vec<String>,
     pub multi: bool,
 }
 
@@ -579,16 +545,10 @@ pub struct DocTypeInput {
     pub name: String,
     #[serde(default)]
     pub required: bool,
-    #[serde(default = "DocTypeInput::default_accept")]
-    pub accept: DocAccept,
+    #[serde(default)]
+    pub extensions: Vec<String>,
     #[serde(default)]
     pub multi: bool,
-}
-
-impl DocTypeInput {
-    fn default_accept() -> DocAccept {
-        DocAccept::All
-    }
 }
 
 /// Meslek. `required` kapalıysa proje için müellif ataması zorunlu değildir.

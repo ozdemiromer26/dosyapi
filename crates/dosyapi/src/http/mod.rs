@@ -40,6 +40,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::files::router())
         // Canlı güncelleme akışı uzun ömürlüdür; süre sınırının dışında tutulur.
         .route("/events", axum::routing::get(events::stream))
+        .route("/master/events", axum::routing::get(events::master_stream))
         .layer(from_fn_with_state(state.clone(), events::notify_changes));
 
     Router::new()

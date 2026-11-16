@@ -18,15 +18,30 @@ pub const MASTER_IDLE: i64 = 30 * 60;
 /// Bu kadar ardışık hatalı denemeden sonra panel geçici olarak kilitlenir.
 pub const LOCK_AFTER: i64 = 5;
 
-/// Master girişinde kilit süresi kademeli artar: 5. hatada 5 dk; kilit bitince her yeni
-/// hata bir üst kademe (15, 30 dk), sonrasında her hata 60 dk.
+/// İlk kilitten sonra kademe bu kadar yeni hatada bir artar.
+pub const STEP_EVERY: i64 = 3;
+
+/// Master girişinde kilit süresi kademeli artar: 5. hatada 5 dk; kilit bitince her 3 yeni
+/// hatada bir üst kademe (15, 30 dk), sonrasında her 3 hatada 60 dk.
 fn lockout_seconds(failures: i64) -> i64 {
-    match failures - LOCK_AFTER {
-        n if n < 0 => 0,
+    let past = failures - LOCK_AFTER;
+    if past < 0 || past % STEP_EVERY != 0 {
+        return 0;
+    }
+    match past / STEP_EVERY {
         0 => 5 * 60,
         1 => 15 * 60,
         2 => 30 * 60,
         _ => 60 * 60,
+    }
+}
+
+/// Bir sonraki kilide kadar kalan deneme hakkı.
+fn attempts_left(failures: i64) -> i64 {
+    if failures < LOCK_AFTER {
+        LOCK_AFTER - failures
+    } else {
+        STEP_EVERY - (failures - LOCK_AFTER) % STEP_EVERY
     }
 }
 
@@ -43,6 +58,8 @@ pub enum MasterGate {
         until: i64,
         failures: i64,
         last_at: i64,
+        /// Bu kilidin süresi (saniye).
+        duration: i64,
     },
     #[serde(rename_all = "camelCase")]
     Disabled { since: i64, last_at: i64 },
@@ -100,10 +117,11 @@ impl MasterService {
                 until: lock.locked_until,
                 failures: lock.failures,
                 last_at: lock.last_at,
+                duration: lockout_seconds(lock.failures),
             });
         }
         Ok(MasterGate::Open {
-            remaining: (LOCK_AFTER - lock.failures).max(1),
+            remaining: attempts_left(lock.failures),
         })
     }
 
@@ -146,7 +164,7 @@ impl MasterService {
             }
             return Err(AppError::validation(format!(
                 "Master şifre hatalı. {} deneme hakkınız kaldı.",
-                LOCK_AFTER - lock.failures
+                attempts_left(lock.failures)
             )));
         }
         if let Some(secret) = self.settings.get_secret(KEY_MASTER_TOTP).await? {
@@ -216,6 +234,18 @@ impl MasterService {
         }
         self.sessions.touch(&token_hash, now).await?;
         Ok(MasterAuthenticated { token_hash })
+    }
+
+    /// Canlı akış için: oturum hâlâ geçerli mi? Oturumu tazelemez; panel kapatıldıysa düşer.
+    pub async fn session_alive(&self, token_hash: &[u8]) -> bool {
+        let Ok(Some(session)) = self.sessions.find(token_hash).await else {
+            return false;
+        };
+        let now = self.clock.now();
+        session.kind == SessionKind::Master
+            && session.expires_at > now
+            && session.last_seen_at + session.idle_seconds > now
+            && matches!(self.disabled().await, Ok(None))
     }
 
     pub async fn logout(&self, token: &str) -> AppResult<()> {
@@ -345,7 +375,31 @@ mod tests {
 
     #[test]
     fn lockout_steps() {
-        let steps: Vec<i64> = (1..=10).map(lockout_seconds).collect();
-        assert_eq!(steps, [0, 0, 0, 0, 300, 900, 1800, 3600, 3600, 3600]);
+        let steps: Vec<i64> = (1..=17).map(lockout_seconds).collect();
+        let m = 60;
+        assert_eq!(
+            steps,
+            [
+                0,
+                0,
+                0,
+                0,
+                5 * m,
+                0,
+                0,
+                15 * m,
+                0,
+                0,
+                30 * m,
+                0,
+                0,
+                60 * m,
+                0,
+                0,
+                60 * m
+            ]
+        );
+        let left: Vec<i64> = (0..=8).map(attempts_left).collect();
+        assert_eq!(left, [5, 4, 3, 2, 1, 3, 2, 1, 3]);
     }
 }

@@ -17,11 +17,21 @@ export function CompanyScreen({ v }: { v: Vals }) {
                     <button onClick={d.onToggleReq} style={css(d.reqBtnStyle)}>{d.reqLabel}</button>
                     <button onClick={d.onDelete} aria-label={v.T.sil} style={css("width:32px;height:30px;border:1px solid var(--errline);background:var(--err);color:var(--errtext);border-radius:7px;font-size:12px;font-weight:700;cursor:pointer")}>✕</button>
                   </div>
-                  <div style={st.rowCenter8}>
-                    <select onChange={d.onFormat} value={d.accept} style={css("flex:1;min-width:160px;height:30px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:7px;padding:0 8px;font-size:12px;font-weight:700")}>
-                      {(v.docFormats || []).map((o: any, i84: number) => (<React.Fragment key={o?.id ?? o?.key ?? i84}>
-                        <option value={o.id}>{o.label}</option>
-                      </React.Fragment>))}
+                  <div style={css("display:flex;gap:6px;flex-wrap:wrap;align-items:center")}>
+                    {d.extAll ? <span style={css("font-size:12px;font-weight:700;color:var(--muted);padding:4px 2px")}>{v.T.tumDosyaTipleriKabul}</span> : null}
+                    {(d.extChips || []).map((x: any) => (
+                      <span key={x.key} style={css("display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:7px;padding:4px 6px 4px 9px;font-size:12px;font-weight:800;font-family:ui-monospace,Menlo,monospace")}>{x.label}
+                        <button onClick={x.onRemove} aria-label={v.T.sil} style={css("border:none;background:none;color:var(--faint);font-size:12px;font-weight:700;cursor:pointer;padding:0 2px")}>✕</button>
+                      </span>
+                    ))}
+                  </div>
+                  <div style={css("display:flex;gap:6px;flex-wrap:wrap;align-items:center")}>
+                    <input name={d.extField} ref={d.refExt} onChange={v.onField} onKeyDown={d.onExtKey} placeholder={v.T.uzantiEkle} autoCapitalize="off" autoCorrect="off" spellCheck={false} style={css("flex:1;min-width:120px;height:30px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:7px;padding:0 9px;font-size:12px;font-weight:600")} />
+                    <button onClick={d.addExt} aria-label={v.T.ekle} style={css("width:32px;height:30px;flex:none;border:none;border-radius:7px;background:var(--pri,#2a3180);color:#fff;font-size:15px;font-weight:700;cursor:pointer")}>+</button>
+                    <select onChange={d.onPreset} value="" aria-label={v.T.hazirGrup} style={css("flex:none;max-width:150px;height:30px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:7px;padding:0 6px;font-size:12px;font-weight:700")}>
+                      <option value="">{v.T.hazirGrup}</option>
+                      {(v.extPresets || []).map((o: any) => (<option key={o.id} value={o.id}>{o.label}</option>))}
+                      {d.extAll ? null : <option value="all">{v.T.tumTipleriKabulEt}</option>}
                     </select>
                     <button onClick={d.onToggleMulti} style={css(d.multiBtnStyle)}>{d.multiLabel}</button>
                   </div>
