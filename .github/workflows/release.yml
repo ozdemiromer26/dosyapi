@@ -1,7 +1,7 @@
 # `v1.2.3` etiketi atıldığında Linux paketlerini derler, bildirimi imzalar ve yayınlar.
 # Gerekli ayarlar:
 #   vars.DOSYAPI_RELEASE_PUBKEYS   açık anahtar(lar)
-#   vars.DOSYAPI_UPDATE_URL        bildirimlerin yayınlandığı adres
+#   vars.DOSYAPI_UPDATE_URL        bildirimlerin yayınlandığı adres (https://<sahip>.github.io/<depo>)
 #   secrets.DOSYAPI_SIGNING_KEY    gizli imzalama anahtarı (hex)
 name: release
 on:
@@ -58,6 +58,24 @@ jobs:
       - run: gh release create "$GITHUB_REF_NAME" dist/dosyapi-* manifest.json manifest.json.sig --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
+      # Güncelleyici <DOSYAPI_UPDATE_URL>/stable/manifest.json(.sig) okur. Bildirim, sürüm oluştuktan sonra
+      # gh-pages dalına konur (Pages kaynağı: gh-pages dalı); dalda yalnızca son kararlı bildirim durur.
+      # Ön sürümler (1.2.0-beta.1 gibi) kararlı kanala konmaz.
+      - name: Bildirimi GitHub Pages'e koy
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/pages/stable"
+          cp manifest.json manifest.json.sig "$RUNNER_TEMP/pages/stable/"
+          cd "$RUNNER_TEMP/pages"
+          touch .nojekyll
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Güncelleme bildirimi ${GITHUB_REF_NAME}"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
 
   # Docker imajı: yukarıda derlenen ikililer paketlenir (QEMU ile yeniden derleme yok).
   # ghcr.io/<sahip>/dosyapi:<sürüm> ve kararlı sürümlerde :latest etiketlenir.

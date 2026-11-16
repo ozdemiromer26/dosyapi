@@ -1,4 +1,9 @@
 # `rsa`, kullanılmayan sqlx-mysql sürücüsü yüzünden Cargo.lock içinde görünür ama derlenmez
 # (`cargo tree -i rsa` boş döner). MySQL desteği eklenirse bu istisna kaldırılmalıdır.
 [advisories]
-ignore = ["RUSTSEC-2023-0071"]
+#
+# `RUSTSEC-2026-0459` (gömülü SQLite < 3.54): düzeltme libsqlite3-sys >= 0.39 ister, sqlx 0.9.0 bile < 0.38 ile
+# sınırlı. Saldırı, veri klasörüne hazırlanmış veritabanı ve -wal dosyası koymayı gerektirir; dosyapı yalnızca kendi
+# oluşturduğu ya da secret.key ile doğrulanmış yedekten gelen veritabanını açar. Gerekçe docs/SIZMA-TESTI.md'de.
+# sqlx libsqlite3-sys >= 0.39'a izin verince yükseltilip bu istisna kaldırılmalıdır.
+ignore = ["RUSTSEC-2023-0071", "RUSTSEC-2026-0459"]

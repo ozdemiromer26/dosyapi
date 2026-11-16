@@ -32,7 +32,8 @@ Uygulama süreci `/opt/dosyapi/bin` altına yazamaz. Uygulama ele geçirilse bil
 
 - `signing.key` dosyasını depoya koymayın; GitHub'da `DOSYAPI_SIGNING_KEY` sırrı olarak saklayın.
 - Yazdırılan açık anahtarı `DOSYAPI_RELEASE_PUBKEYS` değişkenine yazın.
-- Bildirimlerin yayınlanacağı HTTPS adresini `DOSYAPI_UPDATE_URL` değişkenine yazın.
+- Bildirimlerin yayınlanacağı HTTPS adresini `DOSYAPI_UPDATE_URL` değişkenine yazın. GitHub Pages kullanılıyorsa
+  `https://<sahip>.github.io/<depo>` (sonda `/` yok).
 
 Bildirim adresi şu düzende olmalıdır:
 
@@ -41,9 +42,10 @@ Bildirim adresi şu düzende olmalıdır:
 <DOSYAPI_UPDATE_URL>/stable/manifest.json.sig
 ```
 
-`v1.2.3` etiketi atıldığında `.github/workflows/release.yml` Linux x86_64 ve aarch64 için derler ve imzalar. Üretilen
-`manifest.json` ile `.sig` dosyalarını yukarıdaki adrese kopyalamak yayını tamamlar (GitHub Pages ya da herhangi bir statik
-HTTPS sunucusu yeterlidir).
+`v1.2.3` etiketi atıldığında `.github/workflows/release.yml` Linux x86_64 ve aarch64 için derler, bildirimi imzalar,
+GitHub sürümünü oluşturur ve `manifest.json` ile `.sig` dosyalarını `gh-pages` dalının `stable/` klasörüne koyar. Depo
+ayarlarında Pages kaynağı bir kez `gh-pages` dalı olarak seçilince yayın kendiliğinden tamamlanır. Başka bir statik HTTPS
+sunucusu kullanılacaksa bu iki dosyayı oraya kopyalamak yeterlidir.
 
 Elle yayın:
 

@@ -32,8 +32,8 @@ klasörüne özel hazırlanmış bir veritabanı ve `-wal` dosyası koyabildiği
 döndürebilir (yerel saldırı, bilgi sızıntısı). dosyapı yalnızca kendi oluşturduğu veritabanını açar; geri yüklemede
 yedekteki veritabanı ancak yedeğin tamamı `secret.key` ile doğrulandıktan sonra açılır, yani dışarıdan hazırlanmış bir
 veritabanı anahtar olmadan içeri sokulamaz. Bu yüzden risk düşüktür. Düzeltme `libsqlite3-sys` ≥ 0.39 gerektirir; sqlx 0.9.0
-bile `< 0.38` ile sınırlı olduğu için şu an yükseltilemiyor. sqlx yeni sürümü çıkınca yükseltilecek; istisna listesine
-bilerek eklenmedi, `cargo audit` hatırlatmaya devam eder.
+bile `< 0.38` ile sınırlı olduğu için şu an yükseltilemiyor. CI'daki derleme ve sızma testi adımları bu yüzden durmasın
+diye `.cargo/audit.toml` içinde geçici istisnadır; sqlx izin verdiğinde yükseltilip istisna kaldırılacak.
 
 ## Kapsanan saldırılar
 
